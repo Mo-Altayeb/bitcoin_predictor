@@ -1,4 +1,4 @@
-// static/js/script.js
+// static/js/script.js - ENHANCED VERSION
 
 // Global variables for charts
 let priceChart, sentimentChart, performanceChart, featureChart, confidenceChart;
@@ -8,7 +8,7 @@ let predictionHistory = [];
 document.addEventListener('DOMContentLoaded', function() {
     initializeCharts();
     checkStatus();
-    loadHistoricalData();
+    loadDashboardData();
 });
 
 // Tab switching function
@@ -29,12 +29,11 @@ function switchTab(tabName) {
     // Add active class to clicked tab
     event.currentTarget.classList.add('active');
     
-    // Refresh charts when switching to analytics tab
+    // Load data for specific tabs
     if (tabName === 'analytics') {
-        setTimeout(() => {
-            if (featureChart) featureChart.update();
-            if (confidenceChart) confidenceChart.update();
-        }, 100);
+        loadAnalyticsData();
+    } else if (tabName === 'history') {
+        loadHistoryData();
     }
 }
 
@@ -61,10 +60,6 @@ function initializeCharts() {
             plugins: {
                 legend: {
                     position: 'top',
-                },
-                title: {
-                    display: true,
-                    text: 'Recent Price Trend'
                 }
             },
             scales: {
@@ -102,10 +97,6 @@ function initializeCharts() {
             plugins: {
                 legend: {
                     position: 'top',
-                },
-                title: {
-                    display: true,
-                    text: 'Sentiment Distribution'
                 }
             }
         }
@@ -135,10 +126,6 @@ function initializeCharts() {
             plugins: {
                 legend: {
                     position: 'top',
-                },
-                title: {
-                    display: true,
-                    text: 'Prediction Accuracy'
                 }
             }
         }
@@ -149,10 +136,10 @@ function initializeCharts() {
     featureChart = new Chart(featureCtx, {
         type: 'bar',
         data: {
-            labels: ['Price Ratio 7D', 'Trend 60D', 'Sentiment', 'Edit Count', 'Price Ratio 365D'],
+            labels: [],
             datasets: [{
                 label: 'Feature Importance',
-                data: [0.22, 0.18, 0.15, 0.12, 0.10],
+                data: [],
                 backgroundColor: 'rgba(102, 126, 234, 0.7)',
                 borderColor: 'rgb(102, 126, 234)',
                 borderWidth: 1
@@ -164,10 +151,6 @@ function initializeCharts() {
             plugins: {
                 legend: {
                     position: 'top',
-                },
-                title: {
-                    display: true,
-                    text: 'Most Important Prediction Factors'
                 }
             }
         }
@@ -199,79 +182,165 @@ function initializeCharts() {
             plugins: {
                 legend: {
                     position: 'top',
-                },
-                title: {
-                    display: true,
-                    text: 'Confidence Level Distribution'
                 }
             }
         }
     });
 }
 
-// Load historical data for charts
-function loadHistoricalData() {
-    // In a real app, this would fetch from your API
-    // For now, we'll simulate with sample data
-    
-    // Sample price data (last 30 days)
-    const samplePrices = [];
-    let basePrice = 90000;
-    for (let i = 30; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const price = basePrice + (Math.random() - 0.5) * 10000;
-        samplePrices.push({
-            date: date.toISOString().split('T')[0],
-            price: Math.round(price)
-        });
-        basePrice = price;
-    }
-    
-    // Update price chart
-    priceChart.data.labels = samplePrices.map(item => {
-        const date = new Date(item.date);
-        return `${date.getMonth()+1}/${date.getDate()}`;
-    });
-    priceChart.data.datasets[0].data = samplePrices.map(item => item.price);
-    priceChart.update();
-    
-    // Update sentiment chart with sample data
-    sentimentChart.data.datasets[0].data = [45, 35, 20];
-    sentimentChart.update();
-    
-    // Update performance chart with sample data
-    performanceChart.data.datasets[0].data = [65, 35];
-    performanceChart.update();
-    
-    // Update stats with sample data
-    document.getElementById('accuracyStat').textContent = '65%';
-    document.getElementById('upAccuracy').textContent = '68%';
-    document.getElementById('downAccuracy').textContent = '62%';
-    document.getElementById('avgConfidence').textContent = '71%';
-    
-    // Update confidence distribution
-    confidenceChart.data.datasets[0].data = [12, 8, 5];
-    confidenceChart.update();
-    
-    // Load sample prediction history
-    loadSampleHistory();
+// Load all dashboard data
+async function loadDashboardData() {
+    await loadPriceHistory();
+    await loadSentimentData();
+    await loadPerformanceData();
 }
 
-// Load sample prediction history
-function loadSampleHistory() {
-    const sampleHistory = [
-        { date: '2025-11-13', prediction: 'UP', confidence: 68, actual: 'UP', correct: true },
-        { date: '2025-11-12', prediction: 'DOWN', confidence: 72, actual: 'DOWN', correct: true },
-        { date: '2025-11-11', prediction: 'UP', confidence: 54, actual: 'DOWN', correct: false },
-        { date: '2025-11-10', prediction: 'DOWN', confidence: 61, actual: 'DOWN', correct: true },
-        { date: '2025-11-09', prediction: 'UP', confidence: 78, actual: 'UP', correct: true },
-        { date: '2025-11-08', prediction: 'UP', confidence: 49, actual: 'DOWN', correct: false },
-        { date: '2025-11-07', prediction: 'DOWN', confidence: 65, actual: 'DOWN', correct: true },
-    ];
-    
-    predictionHistory = sampleHistory;
-    updateHistoryDisplay();
+// Load price history from API
+async function loadPriceHistory() {
+    try {
+        const response = await fetch('/api/price_history?days=30');
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            const prices = data.data;
+            
+            // Update price chart
+            priceChart.data.labels = prices.map(item => {
+                const date = new Date(item.date);
+                return `${date.getMonth()+1}/${date.getDate()}`;
+            });
+            priceChart.data.datasets[0].data = prices.map(item => item.price);
+            priceChart.update();
+        }
+    } catch (error) {
+        console.error('Error loading price history:', error);
+        loadSamplePriceData();
+    }
+}
+
+// Load sentiment data from API
+async function loadSentimentData() {
+    try {
+        const response = await fetch('/api/sentiment_data');
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            const sentiment = data.data;
+            sentimentChart.data.datasets[0].data = [
+                sentiment.positive,
+                sentiment.neutral,
+                sentiment.negative
+            ];
+            sentimentChart.update();
+        }
+    } catch (error) {
+        console.error('Error loading sentiment data:', error);
+        // Fallback to sample data
+        sentimentChart.data.datasets[0].data = [12, 8, 5];
+        sentimentChart.update();
+    }
+}
+
+// Load performance data from API
+async function loadPerformanceData() {
+    try {
+        const response = await fetch('/api/model_performance');
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            const performance = data.data;
+            
+            // Update performance chart
+            performanceChart.data.datasets[0].data = [
+                performance.correct_predictions,
+                performance.total_predictions - performance.correct_predictions
+            ];
+            performanceChart.update();
+            
+            // Update stats cards
+            document.getElementById('accuracyStat').textContent = `${performance.accuracy}%`;
+            document.getElementById('upAccuracy').textContent = `${performance.up_accuracy}%`;
+            document.getElementById('downAccuracy').textContent = `${performance.down_accuracy}%`;
+            document.getElementById('avgConfidence').textContent = `${performance.avg_confidence}%`;
+        }
+    } catch (error) {
+        console.error('Error loading performance data:', error);
+        // Fallback to sample data
+        document.getElementById('accuracyStat').textContent = '65%';
+        document.getElementById('upAccuracy').textContent = '68%';
+        document.getElementById('downAccuracy').textContent = '62%';
+        document.getElementById('avgConfidence').textContent = '71%';
+    }
+}
+
+// Load analytics data
+async function loadAnalyticsData() {
+    await loadFeatureImportance();
+    await loadConfidenceDistribution();
+}
+
+// Load feature importance from API
+async function loadFeatureImportance() {
+    try {
+        const response = await fetch('/api/feature_importance');
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            const features = data.data;
+            
+            featureChart.data.labels = features.features;
+            featureChart.data.datasets[0].data = features.importance;
+            featureChart.update();
+        }
+    } catch (error) {
+        console.error('Error loading feature importance:', error);
+    }
+}
+
+// Load confidence distribution (calculated from history)
+async function loadConfidenceDistribution() {
+    try {
+        const response = await fetch('/api/prediction_history?limit=50');
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            const history = data.data;
+            
+            let highConfidence = 0, mediumConfidence = 0, lowConfidence = 0;
+            
+            history.forEach(prediction => {
+                if (prediction.confidence >= 70) highConfidence++;
+                else if (prediction.confidence >= 50) mediumConfidence++;
+                else lowConfidence++;
+            });
+            
+            confidenceChart.data.datasets[0].data = [highConfidence, mediumConfidence, lowConfidence];
+            confidenceChart.update();
+        }
+    } catch (error) {
+        console.error('Error loading confidence distribution:', error);
+    }
+}
+
+// Load history data
+async function loadHistoryData() {
+    await loadPredictionHistory();
+}
+
+// Load prediction history from API
+async function loadPredictionHistory() {
+    try {
+        const response = await fetch('/api/prediction_history?limit=20');
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            predictionHistory = data.data;
+            updateHistoryDisplay();
+        }
+    } catch (error) {
+        console.error('Error loading prediction history:', error);
+        loadSampleHistory();
+    }
 }
 
 // Update history display
@@ -283,23 +352,22 @@ function updateHistoryDisplay() {
         const historyItem = document.createElement('div');
         historyItem.className = 'history-item';
         
-        const date = new Date(item.date);
+        const date = new Date(item.timestamp);
         const formattedDate = `${date.getMonth()+1}/${date.getDate()}/${date.getFullYear()}`;
         
         historyItem.innerHTML = `
             <div>
                 <strong>${formattedDate}</strong>
-                <div style="font-size: 0.8em; color: #6c757d;">Actual: ${item.actual}</div>
+                <div style="font-size: 0.8em; color: #6c757d;">
+                    Price: $${item.current_price?.toLocaleString() || 'N/A'}
+                </div>
             </div>
             <div style="text-align: right;">
                 <span class="prediction-badge ${item.prediction === 'UP' ? 'badge-up' : 'badge-down'}">
                     ${item.prediction} (${item.confidence}%)
                 </span>
-                <div style="margin-top: 5px;">
-                    ${item.correct ? 
-                        '<i class="fas fa-check" style="color: #28a745;"></i>' : 
-                        '<i class="fas fa-times" style="color: #dc3545;"></i>'
-                    }
+                <div style="margin-top: 5px; font-size: 0.8em; color: #6c757d;">
+                    UP: ${item.up_probability}% | DOWN: ${item.down_probability}%
                 </div>
             </div>
         `;
@@ -308,19 +376,56 @@ function updateHistoryDisplay() {
     });
     
     // Update performance summary
-    const correctCount = predictionHistory.filter(item => item.correct).length;
-    const totalCount = predictionHistory.length;
-    const accuracy = Math.round((correctCount / totalCount) * 100);
+    updatePerformanceSummary();
+}
+
+// Update performance summary
+function updatePerformanceSummary() {
+    if (predictionHistory.length === 0) {
+        document.getElementById('performanceSummary').innerHTML = `
+            <p>No prediction history available</p>
+        `;
+        return;
+    }
+    
+    const total = predictionHistory.length;
+    const avgConfidence = predictionHistory.reduce((sum, item) => sum + item.confidence, 0) / total;
     
     document.getElementById('performanceSummary').innerHTML = `
-        <p><strong>Overall Accuracy:</strong> ${accuracy}% (${correctCount}/${totalCount})</p>
-        <p><strong>Recent Trend:</strong> ${accuracy >= 60 ? 'Improving' : 'Stable'}</p>
-        <p><strong>Best Streak:</strong> 5 consecutive correct predictions</p>
-        <p><strong>Avg Confidence:</strong> ${Math.round(predictionHistory.reduce((sum, item) => sum + item.confidence, 0) / predictionHistory.length)}%</p>
+        <p><strong>Total Predictions:</strong> ${total}</p>
+        <p><strong>Average Confidence:</strong> ${Math.round(avgConfidence)}%</p>
+        <p><strong>Recent Activity:</strong> Active</p>
+        <p><strong>Last Prediction:</strong> ${new Date(predictionHistory[0].timestamp).toLocaleDateString()}</p>
     `;
 }
 
-// Core application functions
+// Fallback to sample data if APIs fail
+function loadSamplePriceData() {
+    const samplePrices = [];
+    let basePrice = 90000;
+    for (let i = 30; i >= 0; i--) {
+        const price = basePrice + (Math.random() - 0.5) * 10000;
+        samplePrices.push(price);
+        basePrice = price;
+    }
+    
+    priceChart.data.labels = Array.from({length: 31}, (_, i) => `${i+1}d`);
+    priceChart.data.datasets[0].data = samplePrices;
+    priceChart.update();
+}
+
+function loadSampleHistory() {
+    const sampleHistory = [
+        { timestamp: new Date().toISOString(), prediction: 'UP', confidence: 68, current_price: 95123, up_probability: 68, down_probability: 32 },
+        { timestamp: new Date(Date.now() - 86400000).toISOString(), prediction: 'DOWN', confidence: 72, current_price: 94876, up_probability: 28, down_probability: 72 },
+        { timestamp: new Date(Date.now() - 172800000).toISOString(), prediction: 'UP', confidence: 54, current_price: 94567, up_probability: 54, down_probability: 46 },
+    ];
+    
+    predictionHistory = sampleHistory;
+    updateHistoryDisplay();
+}
+
+// Core application functions (keep your existing functions)
 async function getPrediction() {
     showLoading('Analyzing current market data...');
     disableButtons(true);
@@ -340,8 +445,8 @@ async function getPrediction() {
         updatePredictionDisplay(data);
         checkStatus();
         
-        // Add to history
-        addToHistory(data);
+        // Refresh dashboard data
+        loadDashboardData();
         
     } catch (error) {
         hideLoading();
@@ -373,6 +478,7 @@ async function updateData() {
             }, 2000);
             
             checkStatus();
+            loadDashboardData();
         } else {
             showError('Update failed: ' + data.message);
         }
@@ -449,26 +555,6 @@ function updatePredictionDisplay(data) {
     } else {
         card.classList.remove('pulse');
     }
-}
-
-function addToHistory(predictionData) {
-    // In a real app, this would be saved to a database
-    // For now, we'll just add to the frontend array
-    const historyItem = {
-        date: new Date().toISOString().split('T')[0],
-        prediction: predictionData.prediction,
-        confidence: predictionData.confidence,
-        // In a real app, we would check against actual price later
-        actual: 'Pending',
-        correct: null
-    };
-    
-    predictionHistory.unshift(historyItem);
-    if (predictionHistory.length > 10) {
-        predictionHistory.pop();
-    }
-    
-    updateHistoryDisplay();
 }
 
 function showLoading(message) {
