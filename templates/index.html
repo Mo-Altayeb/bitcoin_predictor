@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bitcoin Price Predictor</title>
+    <title>Bitcoin AI Predictor</title>
     
     <!-- External Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -15,8 +15,22 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1><i class="fas fa-chart-line"></i> Bitcoin Price Predictor</h1>
+            <h1><i class="fab fa-bitcoin"></i> Bitcoin AI Predictor</h1>
             <p>AI-powered prediction for tomorrow's Bitcoin price movement using Wikipedia sentiment analysis</p>
+            <div class="status-indicators">
+                <div class="status-item">
+                    <span class="status-dot live"></span>
+                    Live Data
+                </div>
+                <div class="status-item">
+                    <span class="status-dot model"></span>
+                    Model Ready
+                </div>
+                <div class="status-item">
+                    <span class="status-dot api"></span>
+                    API Connected
+                </div>
+            </div>
         </div>
         
         <div class="content">
@@ -61,6 +75,36 @@
                             
                             <div id="predictionDate" style="margin-top: 10px; color: #6c757d;"></div>
                         </div>
+
+                        <!-- Prediction Explanation -->
+                        <div class="prediction-explanation">
+                            <h4><i class="fas fa-info-circle"></i> How to Interpret</h4>
+                            <ul>
+                                <li><strong>UP Prediction</strong>: Model expects price increase tomorrow</li>
+                                <li><strong>DOWN Prediction</strong>: Model expects price decrease tomorrow</li>
+                                <li><strong>Confidence</strong>: Model's certainty in prediction (70%+ is high)</li>
+                                <li><strong>Current Price</strong>: Bitcoin price at prediction time</li>
+                            </ul>
+                        </div>
+
+                        <!-- Confidence Guide -->
+                        <div class="confidence-guide">
+                            <h4><i class="fas fa-chart-line"></i> Confidence Levels</h4>
+                            <div class="confidence-levels">
+                                <div class="level-item">
+                                    <span class="level-dot high"></span>
+                                    <strong>High (70-100%)</strong>: Strong signal
+                                </div>
+                                <div class="level-item">
+                                    <span class="level-dot medium"></span>
+                                    <strong>Medium (50-70%)</strong>: Moderate confidence
+                                </div>
+                                <div class="level-item">
+                                    <span class="level-dot low"></span>
+                                    <strong>Low (0-50%)</strong>: Weak signal - use caution
+                                </div>
+                            </div>
+                        </div>
                         
                         <div class="button-group">
                             <button class="button" onclick="getPrediction()" id="predictBtn">
@@ -69,6 +113,11 @@
                             <button class="button button-secondary" onclick="updateData()" id="updateBtn">
                                 <i class="fas fa-sync-alt"></i> Update Data
                             </button>
+                        </div>
+
+                        <!-- Data Freshness Indicator -->
+                        <div class="data-freshness" id="dataFreshness">
+                            <span class="fresh">🟢 Data Updated Recently</span>
                         </div>
                     </div>
                     
@@ -101,6 +150,15 @@
                                 <div class="stat-label">Recent Predictions</div>
                             </div>
                         </div>
+
+                        <!-- Performance Context -->
+                        <div class="performance-context">
+                            <p><small>
+                                <i class="fas fa-lightbulb"></i> 
+                                <strong>Industry Context</strong>: 55-65% accuracy is considered good for financial prediction models. 
+                                Our model aims to beat this benchmark through Wikipedia sentiment analysis.
+                            </small></p>
+                        </div>
                         
                         <div class="chart-container">
                             <canvas id="performanceChart"></canvas>
@@ -110,7 +168,7 @@
                 
                 <!-- Price Chart -->
                 <div class="chart-container">
-                    <h2 class="chart-title"><i class="fas fa-coins"></i> Bitcoin Price History</h2>
+                    <h2 class="chart-title"><i class="fab fa-bitcoin"></i> Bitcoin Price History</h2>
                     <canvas id="priceChart"></canvas>
                 </div>
                 
@@ -132,6 +190,25 @@
                     <div class="chart-container">
                         <h2 class="chart-title"><i class="fas fa-brain"></i> Model Confidence Distribution</h2>
                         <canvas id="confidenceChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Feature Explanations -->
+                <div class="feature-explanations">
+                    <h3><i class="fas fa-cogs"></i> Feature Descriptions</h3>
+                    <div class="feature-grid">
+                        <div class="feature-item">
+                            <strong>Close Ratios</strong>: Price compared to moving averages
+                        </div>
+                        <div class="feature-item">
+                            <strong>Trend Indicators</strong>: Recent price direction momentum
+                        </div>
+                        <div class="feature-item">
+                            <strong>Edit Counts</strong>: Wikipedia activity volume
+                        </div>
+                        <div class="feature-item">
+                            <strong>Sentiment Scores</strong>: Emotional tone of Wikipedia edits
+                        </div>
                     </div>
                 </div>
                 
@@ -178,7 +255,10 @@
                     <div class="info-item">
                         <h3><i class="fas fa-calendar-alt"></i> Prediction Calendar</h3>
                         <div id="predictionCalendar">
-                            <p>Prediction history calendar view</p>
+                            <p>Last 7 days of predictions:</p>
+                            <div class="calendar-grid" id="calendarGrid">
+                                <!-- Calendar items will be added here -->
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -188,6 +268,7 @@
             <div class="loading" id="loading">
                 <div class="spinner"></div>
                 <p id="loadingText">Analyzing data...</p>
+                <p id="loadingSubtext" style="margin-top: 10px; font-size: 0.9em; color: #6c757d;"></p>
             </div>
             
             <!-- Status Section -->

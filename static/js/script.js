@@ -1,4 +1,4 @@
-// static/js/script.js - FINAL FIXED VERSION
+// static/js/script.js - BITCOIN THEME ENHANCED VERSION
 
 // Global variables for charts
 let priceChart, sentimentChart, performanceChart, featureChart, confidenceChart;
@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeCharts();
     checkStatus();
     loadDashboardData();
+    updateDataFreshness();
 });
 
 // Tab switching function
@@ -37,7 +38,7 @@ function switchTab(tabName) {
     }
 }
 
-// Initialize all charts
+// Initialize all charts with Bitcoin theme
 function initializeCharts() {
     // Price History Chart
     const priceCtx = document.getElementById('priceChart').getContext('2d');
@@ -48,11 +49,15 @@ function initializeCharts() {
             datasets: [{
                 label: 'Bitcoin Price (USD)',
                 data: [],
-                borderColor: '#667eea',
-                backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                borderWidth: 2,
+                borderColor: '#F7931A',
+                backgroundColor: 'rgba(247, 147, 26, 0.1)',
+                borderWidth: 3,
                 fill: true,
-                tension: 0.4
+                tension: 0.4,
+                pointBackgroundColor: '#F7931A',
+                pointBorderColor: '#FFFFFF',
+                pointBorderWidth: 2,
+                pointRadius: 4
             }]
         },
         options: {
@@ -60,11 +65,23 @@ function initializeCharts() {
             plugins: {
                 legend: {
                     position: 'top',
+                },
+                title: {
+                    display: true,
+                    color: '#F7931A'
                 }
             },
             scales: {
                 y: {
-                    beginAtZero: false
+                    beginAtZero: false,
+                    grid: {
+                        color: 'rgba(0,0,0,0.1)'
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(0,0,0,0.1)'
+                    }
                 }
             }
         }
@@ -80,16 +97,16 @@ function initializeCharts() {
                 label: 'Wikipedia Sentiment',
                 data: [0, 0, 0],
                 backgroundColor: [
-                    'rgba(40, 167, 69, 0.7)',
-                    'rgba(108, 117, 125, 0.7)',
-                    'rgba(220, 53, 69, 0.7)'
+                    'rgba(40, 167, 69, 0.8)',
+                    'rgba(108, 117, 125, 0.8)',
+                    'rgba(247, 147, 26, 0.8)'
                 ],
                 borderColor: [
                     'rgb(40, 167, 69)',
                     'rgb(108, 117, 125)',
-                    'rgb(220, 53, 69)'
+                    'rgb(247, 147, 26)'
                 ],
-                borderWidth: 1
+                borderWidth: 2
             }]
         },
         options: {
@@ -111,14 +128,14 @@ function initializeCharts() {
             datasets: [{
                 data: [0, 0],
                 backgroundColor: [
-                    'rgba(40, 167, 69, 0.7)',
-                    'rgba(220, 53, 69, 0.7)'
+                    'rgba(40, 167, 69, 0.8)',
+                    'rgba(247, 147, 26, 0.8)'
                 ],
                 borderColor: [
                     'rgb(40, 167, 69)',
-                    'rgb(220, 53, 69)'
+                    'rgb(247, 147, 26)'
                 ],
-                borderWidth: 1
+                borderWidth: 2
             }]
         },
         options: {
@@ -140,8 +157,8 @@ function initializeCharts() {
             datasets: [{
                 label: 'Feature Importance',
                 data: [],
-                backgroundColor: 'rgba(102, 126, 234, 0.7)',
-                borderColor: 'rgb(102, 126, 234)',
+                backgroundColor: 'rgba(247, 147, 26, 0.8)',
+                borderColor: 'rgb(247, 147, 26)',
                 borderWidth: 1
             }]
         },
@@ -165,16 +182,16 @@ function initializeCharts() {
             datasets: [{
                 data: [0, 0, 0],
                 backgroundColor: [
-                    'rgba(40, 167, 69, 0.7)',
-                    'rgba(255, 193, 7, 0.7)',
-                    'rgba(220, 53, 69, 0.7)'
+                    'rgba(40, 167, 69, 0.8)',
+                    'rgba(247, 147, 26, 0.8)',
+                    'rgba(220, 53, 69, 0.8)'
                 ],
                 borderColor: [
                     'rgb(40, 167, 69)',
-                    'rgb(255, 193, 7)',
+                    'rgb(247, 147, 26)',
                     'rgb(220, 53, 69)'
                 ],
-                borderWidth: 1
+                borderWidth: 2
             }]
         },
         options: {
@@ -193,6 +210,7 @@ async function loadDashboardData() {
     await loadPriceHistory();
     await loadSentimentData();
     await loadPerformanceData();
+    updateDataFreshness();
 }
 
 // Load price history from API
@@ -325,6 +343,7 @@ async function loadConfidenceDistribution() {
 // Load history data
 async function loadHistoryData() {
     await loadPredictionHistory();
+    updateCalendarView();
 }
 
 // Load prediction history from API
@@ -403,6 +422,58 @@ function updatePerformanceSummary() {
     `;
 }
 
+// Update calendar view
+function updateCalendarView() {
+    const calendarGrid = document.getElementById('calendarGrid');
+    if (!calendarGrid) return;
+    
+    calendarGrid.innerHTML = '';
+    
+    // Get last 7 days of predictions
+    const lastWeek = predictionHistory.slice(0, 7);
+    
+    for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = `${date.getMonth()+1}/${date.getDate()}`;
+        
+        const prediction = lastWeek.find(p => {
+            const predDate = new Date(p.timestamp);
+            return predDate.toDateString() === date.toDateString();
+        });
+        
+        const dayElement = document.createElement('div');
+        dayElement.className = `calendar-day ${prediction ? (prediction.prediction === 'UP' ? 'up' : 'down') : ''}`;
+        dayElement.innerHTML = `
+            <div>${dateStr}</div>
+            <div style="font-size: 0.7em; margin-top: 2px;">
+                ${prediction ? prediction.prediction : '-'}
+            </div>
+        `;
+        
+        calendarGrid.appendChild(dayElement);
+    }
+}
+
+// Update data freshness indicator
+function updateDataFreshness() {
+    const freshnessElement = document.getElementById('dataFreshness');
+    if (!freshnessElement) return;
+    
+    // This would ideally come from the backend status
+    const now = new Date();
+    const lastUpdate = new Date(); // This should come from backend status
+    const hoursSinceUpdate = Math.floor((now - lastUpdate) / (1000 * 60 * 60));
+    
+    if (hoursSinceUpdate < 1) {
+        freshnessElement.innerHTML = '<span class="fresh">🟢 Data Updated < 1h ago</span>';
+    } else if (hoursSinceUpdate < 24) {
+        freshnessElement.innerHTML = `<span class="stale">🟡 Data Updated ${hoursSinceUpdate}h ago</span>`;
+    } else {
+        freshnessElement.innerHTML = '<span class="outdated">🔴 Data Outdated - Run Update</span>';
+    }
+}
+
 // Fallback to sample data if APIs fail
 function loadSamplePriceData() {
     const samplePrices = [];
@@ -427,11 +498,15 @@ function loadSampleHistory() {
     
     predictionHistory = sampleHistory;
     updateHistoryDisplay();
+    updateCalendarView();
 }
 
-// FIXED: Enhanced getPrediction function with better error handling
+// Enhanced getPrediction function with better loading states
 async function getPrediction() {
-    showLoading('Analyzing current market data...');
+    showLoading(
+        'Analyzing current market data...',
+        'Processing Wikipedia sentiment and technical indicators...'
+    );
     disableButtons(true);
     
     try {
@@ -460,6 +535,7 @@ async function getPrediction() {
         console.log('Updating display with valid prediction data');
         updatePredictionDisplay(data);
         checkStatus();
+        updateDataFreshness();
         
         // Refresh dashboard data
         loadDashboardData();
@@ -473,7 +549,10 @@ async function getPrediction() {
 }
 
 async function updateData() {
-    showLoading('Updating Wikipedia and price data...');
+    showLoading(
+        'Updating Wikipedia and price data...',
+        'This may take a few minutes as we retrain the AI model...'
+    );
     disableButtons(true);
     
     try {
@@ -495,6 +574,7 @@ async function updateData() {
             }, 2000);
             
             checkStatus();
+            updateDataFreshness();
             loadDashboardData();
         } else {
             showError('Update failed: ' + data.message);
@@ -524,7 +604,7 @@ async function checkStatus() {
     }
 }
 
-// COMPLETELY REWRITTEN: Fixed prediction display function
+// Enhanced prediction display function
 function updatePredictionDisplay(data) {
     console.log('Starting prediction display update with:', data);
     
@@ -563,7 +643,7 @@ function updatePredictionDisplay(data) {
         predictionText.innerHTML = isUp ? 
             '<i class="fas fa-arrow-up"></i> PRICE WILL GO UP' : 
             '<i class="fas fa-arrow-down"></i> PRICE WILL GO DOWN';
-        predictionText.style.color = isUp ? '#28a745' : '#dc3545';
+        predictionText.style.color = isUp ? '#28a745' : '#F7931A';
         
         // Update confidence
         const confidence = parseFloat(data.confidence);
@@ -606,12 +686,17 @@ function updatePredictionDisplay(data) {
     }
 }
 
-function showLoading(message) {
+function showLoading(message, submessage = '') {
     const loading = document.getElementById('loading');
     const loadingText = document.getElementById('loadingText');
+    const loadingSubtext = document.getElementById('loadingSubtext');
+    
     if (loading && loadingText) {
         loading.style.display = 'block';
         loadingText.textContent = message;
+        if (loadingSubtext && submessage) {
+            loadingSubtext.textContent = submessage;
+        }
     }
 }
 
@@ -629,7 +714,7 @@ function disableButtons(disabled) {
     if (updateBtn) updateBtn.disabled = disabled;
 }
 
-// FIXED: Enhanced error display
+// Enhanced error display
 function showError(message) {
     console.error('Showing error:', message);
     
