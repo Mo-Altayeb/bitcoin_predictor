@@ -8,6 +8,8 @@ import json
 from datetime import datetime, timedelta
 import warnings
 import tempfile
+from models.model_manager import ModelManager
+
 warnings.filterwarnings("ignore")
 
 app = Flask(__name__)
@@ -21,11 +23,13 @@ class BitcoinPredictor:
         self.model = None
         self.btc_data = None
         self.last_update = None
+        self.data_loaded_time = None
+        self.model_manager = ModelManager()
         self.load_model()
         self.load_prediction_history()
     
     def load_model(self):
-        """Load the trained model"""
+        """Load the trained model with enhanced tracking"""
         try:
             model_paths = [
                 'models/saved_models/bitcoin_model.pkl',
@@ -36,14 +40,15 @@ class BitcoinPredictor:
                 if os.path.exists(model_path):
                     with open(model_path, 'rb') as f:
                         self.model = pickle.load(f)
-                    print(f"Model loaded successfully from {model_path}")
+                    print(f"✅ Model loaded successfully from {model_path}")
+                    self.model_manager.model = self.model
                     return
             
-            print("No pre-trained model found. Please run the update first.")
+            print("❌ No pre-trained model found. Please run the update first.")
             self.model = None
             
         except Exception as e:
-            print(f"Error loading model: {e}")
+            print(f"❌ Error loading model: {e}")
             self.model = None
     
     def load_prediction_history(self):
@@ -57,21 +62,21 @@ class BitcoinPredictor:
                 # Validate loaded data is a list
                 if isinstance(loaded_history, list):
                     prediction_history = loaded_history
-                    print(f"Loaded {len(prediction_history)} historical predictions")
+                    print(f"✅ Loaded {len(prediction_history)} historical predictions")
                 else:
-                    print("Invalid history format, starting fresh")
+                    print("⚠️ Invalid history format, starting fresh")
                     prediction_history = []
             else:
                 prediction_history = []
-                print("No prediction history found, starting fresh")
+                print("⚠️ No prediction history found, starting fresh")
                 
         except json.JSONDecodeError as e:
-            print(f"Corrupted history file: {e}. Starting fresh.")
+            print(f"⚠️ Corrupted history file: {e}. Starting fresh.")
             prediction_history = []
             # Create clean file
             self.save_prediction_history()
         except Exception as e:
-            print(f"Error loading prediction history: {e}")
+            print(f"❌ Error loading prediction history: {e}")
             prediction_history = []
     
     def save_prediction_history(self):
@@ -81,7 +86,7 @@ class BitcoinPredictor:
         try:
             # Ensure we have a valid list
             if not isinstance(prediction_history, list):
-                print("Warning: prediction_history is not a list, resetting")
+                print("⚠️ prediction_history is not a list, resetting")
                 prediction_history = []
                 return
             
@@ -115,23 +120,23 @@ class BitcoinPredictor:
                 os.remove(historical_predictions_file)
             os.rename(temp_path, historical_predictions_file)
             
-            print(f"✓ Successfully saved {len(serializable_history)} predictions")
+            print(f"✅ Successfully saved {len(serializable_history)} predictions")
             
         except Exception as e:
-            print(f"✗ Error saving prediction history: {e}")
+            print(f"❌ Error saving prediction history: {e}")
             # Create empty file as fallback
             try:
                 with open(historical_predictions_file, 'w') as f:
                     json.dump([], f, indent=2)
-                print("✓ Created empty prediction history file as fallback")
+                print("✅ Created empty prediction history file as fallback")
             except Exception as e2:
-                print(f"✗ Failed to create fallback file: {e2}")
+                print(f"❌ Failed to create fallback file: {e2}")
     
     def get_current_data(self):
         """Get current Bitcoin data and prepare features"""
         try:
             if not os.path.exists("wikipedia_edits.csv"):
-                print("Sentiment data not found. Please run update first.")
+                print("❌ Sentiment data not found. Please run update first.")
                 return False
             
             sentiment_data = pd.read_csv("wikipedia_edits.csv", index_col=0, parse_dates=True)
@@ -159,11 +164,12 @@ class BitcoinPredictor:
             
             self.btc_data = btc
             self.last_update = datetime.now()
-            print("Current data loaded successfully")
+            self.data_loaded_time = datetime.now()
+            print("✅ Current data loaded successfully")
             return True
             
         except Exception as e:
-            print(f"Error getting current data: {e}")
+            print(f"❌ Error getting current data: {e}")
             return False
     
     def create_features(self, data):
@@ -229,7 +235,8 @@ class BitcoinPredictor:
                 "prediction_proba": {
                     "up_probability": round(prediction_proba[0][1] * 100, 2),
                     "down_probability": round(prediction_proba[0][0] * 100, 2)
-                }
+                },
+                "data_freshness": self.get_data_freshness()
             }
             
             # Add to prediction history
@@ -272,7 +279,23 @@ class BitcoinPredictor:
             self.save_prediction_history()
             
         except Exception as e:
-            print(f"Error adding prediction to history: {e}")
+            print(f"❌ Error adding prediction to history: {e}")
+    
+    def get_data_freshness(self):
+        """Calculate data freshness for frontend indicators"""
+        if not self.data_loaded_time:
+            return "unknown"
+        
+        hours_since_update = (datetime.now() - self.data_loaded_time).total_seconds() / 3600
+        
+        if hours_since_update < 1:
+            return "very_fresh"
+        elif hours_since_update < 24:
+            return "fresh"
+        elif hours_since_update < 72:
+            return "stale"
+        else:
+            return "outdated"
     
     def get_price_history(self, days=60):
         """Get historical price data for charts"""
@@ -288,13 +311,15 @@ class BitcoinPredictor:
                 price_history.append({
                     "date": date.strftime("%Y-%m-%d"),
                     "price": float(row['close']),
-                    "volume": float(row['volume']) if 'volume' in row else 0
+                    "volume": float(row['volume']) if 'volume' in row else 0,
+                    "high": float(row['high']) if 'high' in row else float(row['close']),
+                    "low": float(row['low']) if 'low' in row else float(row['close'])
                 })
             
             return price_history
             
         except Exception as e:
-            print(f"Error getting price history: {e}")
+            print(f"❌ Error getting price history: {e}")
             return []
     
     def get_sentiment_data(self):
@@ -309,10 +334,12 @@ class BitcoinPredictor:
                 "positive": 0,
                 "neutral": 0,
                 "negative": 0,
-                "total_edits": int(recent_sentiment['edit_count'].sum()) if 'edit_count' in recent_sentiment.columns else 0
+                "total_edits": int(recent_sentiment['edit_count'].sum()) if 'edit_count' in recent_sentiment.columns else 0,
+                "avg_sentiment": float(recent_sentiment['sentiment'].mean()) if 'sentiment' in recent_sentiment.columns else 0,
+                "data_points": len(recent_sentiment)
             }
             
-            # Calculate sentiment distribution (simplified)
+            # Calculate sentiment distribution
             if 'sentiment' in recent_sentiment.columns:
                 positive = (recent_sentiment['sentiment'] > 0.1).sum()
                 negative = (recent_sentiment['sentiment'] < -0.1).sum()
@@ -327,8 +354,8 @@ class BitcoinPredictor:
             return sentiment_summary
             
         except Exception as e:
-            print(f"Error getting sentiment data: {e}")
-            return {"positive": 0, "neutral": 0, "negative": 0, "total_edits": 0}
+            print(f"❌ Error getting sentiment data: {e}")
+            return {"positive": 0, "neutral": 0, "negative": 0, "total_edits": 0, "avg_sentiment": 0, "data_points": 0}
     
     def get_model_performance(self):
         """Calculate model performance metrics"""
@@ -341,7 +368,8 @@ class BitcoinPredictor:
                 "correct_predictions": 0,
                 "up_accuracy": 0,
                 "down_accuracy": 0,
-                "avg_confidence": 0
+                "avg_confidence": 0,
+                "performance_grade": "N/A"
             }
         
         # Filter predictions that have actual results
@@ -350,7 +378,6 @@ class BitcoinPredictor:
         if not completed_predictions:
             # If no completed predictions, use all with estimated accuracy
             total = len(prediction_history)
-            # Estimate based on confidence (for demo purposes)
             estimated_correct = int(total * 0.65)  # Assume 65% accuracy for demo
             
             return {
@@ -359,7 +386,8 @@ class BitcoinPredictor:
                 "correct_predictions": estimated_correct,
                 "up_accuracy": 68,
                 "down_accuracy": 62,
-                "avg_confidence": float(round(np.mean([p['confidence'] for p in prediction_history]), 1)) if prediction_history else 0
+                "avg_confidence": float(round(np.mean([p['confidence'] for p in prediction_history]), 1)) if prediction_history else 0,
+                "performance_grade": "B"  # Demo grade
             }
         
         # Calculate actual performance
@@ -372,13 +400,26 @@ class BitcoinPredictor:
         up_correct = sum(1 for p in up_predictions if p['correct'])
         down_correct = sum(1 for p in down_predictions if p['correct'])
         
+        accuracy = round((correct / total) * 100, 1) if total > 0 else 0
+        
+        # Calculate performance grade
+        if accuracy >= 80:
+            grade = "A"
+        elif accuracy >= 70:
+            grade = "B"
+        elif accuracy >= 60:
+            grade = "C"
+        else:
+            grade = "D"
+        
         return {
-            "accuracy": round((correct / total) * 100, 1) if total > 0 else 0,
+            "accuracy": accuracy,
             "total_predictions": total,
             "correct_predictions": correct,
             "up_accuracy": round((up_correct / len(up_predictions)) * 100, 1) if up_predictions else 0,
             "down_accuracy": round((down_correct / len(down_predictions)) * 100, 1) if down_predictions else 0,
-            "avg_confidence": float(round(np.mean([p['confidence'] for p in completed_predictions]), 1)) if completed_predictions else 0
+            "avg_confidence": float(round(np.mean([p['confidence'] for p in completed_predictions]), 1)) if completed_predictions else 0,
+            "performance_grade": grade
         }
     
     def get_feature_importance(self):
@@ -387,40 +428,47 @@ class BitcoinPredictor:
             if self.model is None:
                 return {}
             
-            # Get feature names from the model
-            if hasattr(self.model, 'feature_names_in_'):
-                feature_names = self.model.feature_names_in_.tolist()
-            else:
-                # Default feature names based on our predictors
-                feature_names = [
-                    'close', 'sentiment', 'neg_sentiment', 'close_ratio_2', 
-                    'trend_2', 'edit_2', 'close_ratio_7', 'trend_7', 'edit_7', 
-                    'close_ratio_60', 'trend_60', 'edit_60', 'close_ratio_365', 
-                    'trend_365', 'edit_365'
-                ]
-            
-            # Get feature importance
-            if hasattr(self.model, 'feature_importances_'):
-                importance_scores = self.model.feature_importances_.tolist()
-            else:
-                # Default importance scores for demo
-                importance_scores = [0.22, 0.18, 0.15, 0.12, 0.10, 0.08, 0.07, 0.04, 0.02, 0.01, 0.005, 0.003, 0.002, 0.001, 0.0005]
-            
-            # Combine and sort by importance
-            features = list(zip(feature_names, importance_scores))
-            features.sort(key=lambda x: x[1], reverse=True)
-            
-            # Return top 10 features
-            top_features = features[:10]
-            
-            return {
-                "features": [f[0] for f in top_features],
-                "importance": [float(f[1]) for f in top_features]
-            }
+            # Use model manager for consistent feature importance
+            return self.model_manager.get_feature_importance()
             
         except Exception as e:
-            print(f"Error getting feature importance: {e}")
+            print(f"❌ Error getting feature importance: {e}")
             return {}
+    
+    def get_system_health(self):
+        """Get comprehensive system health status"""
+        data_freshness = self.get_data_freshness()
+        model_exists = self.model_manager.model_exists()
+        
+        # Calculate health score
+        health_score = 0
+        if model_exists:
+            health_score += 50
+        if data_freshness in ["very_fresh", "fresh"]:
+            health_score += 30
+        elif data_freshness == "stale":
+            health_score += 15
+        if len(prediction_history) > 0:
+            health_score += 20
+        
+        # Determine health status
+        if health_score >= 80:
+            health_status = "healthy"
+        elif health_score >= 60:
+            health_status = "degraded"
+        else:
+            health_status = "unhealthy"
+        
+        return {
+            "health_status": health_status,
+            "health_score": health_score,
+            "data_freshness": data_freshness,
+            "model_loaded": self.model is not None,
+            "data_loaded": self.btc_data is not None,
+            "predictions_count": len(prediction_history),
+            "last_update": self.last_update.isoformat() if self.last_update else "Never",
+            "system_uptime": "active"  # In production, this would track actual uptime
+        }
 
 # Initialize predictor
 predictor = BitcoinPredictor()
@@ -434,13 +482,13 @@ def predict():
     """API endpoint to get prediction"""
     try:
         if predictor.last_update is None or (datetime.now() - predictor.last_update).seconds > 3600:
-            print("Refreshing data...")
+            print("🔄 Refreshing data for prediction...")
             predictor.get_current_data()
         
         result = predictor.predict_tomorrow()
         
         if 'error' not in result:
-            # Ensure ALL values are JSON serializable by converting numpy types
+            # Ensure ALL values are JSON serializable
             result = {
                 "prediction": str(result["prediction"]),
                 "confidence": float(result["confidence"]),
@@ -450,44 +498,61 @@ def predict():
                 "prediction_proba": {
                     "up_probability": float(result["prediction_proba"]["up_probability"]),
                     "down_probability": float(result["prediction_proba"]["down_probability"])
-                }
+                },
+                "data_freshness": result.get("data_freshness", "unknown")
             }
         
         return jsonify(result)
     except Exception as e:
-        print(f"Error in /predict endpoint: {e}")
+        print(f"❌ Error in /predict endpoint: {e}")
         return jsonify({"error": f"Server error: {str(e)}"})
 
 @app.route('/update', methods=['POST'])
 def update_model():
     """Force update of model and data"""
     try:
-        print("Starting update...")
+        print("🔄 Manual update requested...")
         
-        # Simple refresh - just reload current data
+        # Refresh current data
         predictor.btc_data = None
         success = predictor.get_current_data()
         
         if success:
-            return jsonify({"status": "success", "message": "Data refreshed successfully"})
+            return jsonify({
+                "status": "success", 
+                "message": "Data refreshed successfully",
+                "timestamp": datetime.now().isoformat()
+            })
         else:
-            return jsonify({"status": "error", "message": "Failed to refresh data"})
+            return jsonify({
+                "status": "error", 
+                "message": "Failed to refresh data"
+            })
             
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
+        return jsonify({
+            "status": "error", 
+            "message": str(e)
+        })
 
 @app.route('/status')
 def status():
-    """Get current system status"""
+    """Get current system status with enhanced information"""
+    health = predictor.get_system_health()
+    
     status_info = {
         "model_loaded": bool(predictor.model is not None),
         "data_loaded": bool(predictor.btc_data is not None),
         "last_update": predictor.last_update.strftime("%Y-%m-%d %H:%M:%S") if predictor.last_update else "Never",
-        "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "system_health": health,
+        "model_info": predictor.model_manager.get_model_info(),
+        "data_freshness": predictor.get_data_freshness(),
+        "prediction_history_count": len(prediction_history)
     }
     return jsonify(status_info)
 
-# NEW ENDPOINTS FOR ENHANCED FRONTEND
+# ENHANCED API ENDPOINTS FOR NEW FRONTEND
 
 @app.route('/api/price_history')
 def api_price_history():
@@ -497,7 +562,12 @@ def api_price_history():
         price_data = predictor.get_price_history(days)
         return jsonify({
             "status": "success",
-            "data": price_data
+            "data": price_data,
+            "metadata": {
+                "days_requested": days,
+                "data_points": len(price_data),
+                "currency": "USD"
+            }
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
@@ -548,7 +618,11 @@ def api_prediction_history():
         
         return jsonify({
             "status": "success",
-            "data": recent_predictions
+            "data": recent_predictions,
+            "metadata": {
+                "total_predictions": len(prediction_history),
+                "limit_applied": limit
+            }
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
@@ -560,16 +634,19 @@ def api_system_stats():
         # Get all relevant data
         performance = predictor.get_model_performance()
         sentiment = predictor.get_sentiment_data()
+        health = predictor.get_system_health()
+        feature_importance = predictor.get_feature_importance()
         
         stats = {
             "performance": performance,
             "sentiment": sentiment,
+            "system_health": health,
+            "feature_importance": feature_importance,
             "total_predictions_made": len(prediction_history),
-            "system_uptime": "Active",  # This would be calculated in a real system
-            "last_training": "2025-11-14",  # This would be dynamic
-            "model_type": "XGBoost Classifier",
-            "feature_count": 15,
-            "data_sources": ["Yahoo Finance", "Wikipedia API"]
+            "model_info": predictor.model_manager.get_model_info(),
+            "data_sources": ["Yahoo Finance", "Wikipedia API"],
+            "last_data_update": predictor.last_update.isoformat() if predictor.last_update else "Never",
+            "system_version": "1.0.0"
         }
         
         return jsonify({
@@ -579,20 +656,47 @@ def api_system_stats():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
+@app.route('/api/health')
+def api_health():
+    """Dedicated health check endpoint"""
+    try:
+        health = predictor.get_system_health()
+        return jsonify({
+            "status": "success",
+            "data": health
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        })
+
 if __name__ == '__main__':
     try:
+        print("🚀 Bitcoin AI Predictor Starting...")
         predictor.get_current_data()
     except Exception as e:
-        print(f"Warning: Could not load data on startup: {e}")
+        print(f"⚠️  Warning: Could not load data on startup: {e}")
     
-    print("Bitcoin Predictor starting...")
-    print("Visit http://localhost:5001 to use the application")
-    print("New API endpoints available:")
-    print("  /api/price_history - Price data for charts")
-    print("  /api/sentiment_data - Sentiment analysis data")
-    print("  /api/model_performance - Model accuracy metrics")
-    print("  /api/feature_importance - Feature importance data")
-    print("  /api/prediction_history - Historical predictions")
-    print("  /api/system_stats - Comprehensive system statistics")
+    print("=" * 60)
+    print("🤖 BITCOIN AI PREDICTOR - READY!")
+    print("=" * 60)
+    print("🌐 Visit http://localhost:5001 to use the application")
+    print()
+    print("📡 Available API Endpoints:")
+    print("  GET  /                    - Web interface")
+    print("  GET  /predict             - Live prediction")
+    print("  POST /update              - Refresh data")
+    print("  GET  /status              - System status")
+    print("  GET  /api/health          - Health check")
+    print("  GET  /api/price_history   - Price data for charts")
+    print("  GET  /api/sentiment_data  - Sentiment analysis data")
+    print("  GET  /api/model_performance - Model accuracy metrics")
+    print("  GET  /api/feature_importance - Feature importance data")
+    print("  GET  /api/prediction_history - Historical predictions")
+    print("  GET  /api/system_stats    - Comprehensive system statistics")
+    print()
+    print("💡 Run 'python update_data.py' to update Wikipedia data and retrain model")
+    print("=" * 60)
     
     app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5001)))
