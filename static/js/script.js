@@ -1,4 +1,4 @@
-// static/js/script.js - ENHANCED VERSION
+// static/js/script.js - FINAL FIXED VERSION
 
 // Global variables for charts
 let priceChart, sentimentChart, performanceChart, featureChart, confidenceChart;
@@ -257,11 +257,11 @@ async function loadPerformanceData() {
             ];
             performanceChart.update();
             
-            // Update stats cards
-            document.getElementById('accuracyStat').textContent = `${performance.accuracy}%`;
-            document.getElementById('upAccuracy').textContent = `${performance.up_accuracy}%`;
-            document.getElementById('downAccuracy').textContent = `${performance.down_accuracy}%`;
-            document.getElementById('avgConfidence').textContent = `${performance.avg_confidence}%`;
+            // Update stats cards with proper rounding
+            document.getElementById('accuracyStat').textContent = `${Math.round(performance.accuracy)}%`;
+            document.getElementById('upAccuracy').textContent = `${Math.round(performance.up_accuracy)}%`;
+            document.getElementById('downAccuracy').textContent = `${Math.round(performance.down_accuracy)}%`;
+            document.getElementById('avgConfidence').textContent = `${Math.round(performance.avg_confidence)}%`;
         }
     } catch (error) {
         console.error('Error loading performance data:', error);
@@ -355,6 +355,10 @@ function updateHistoryDisplay() {
         const date = new Date(item.timestamp);
         const formattedDate = `${date.getMonth()+1}/${date.getDate()}/${date.getFullYear()}`;
         
+        // Round probabilities for display
+        const upProb = Math.round(item.up_probability * 100) / 100;
+        const downProb = Math.round(item.down_probability * 100) / 100;
+        
         historyItem.innerHTML = `
             <div>
                 <strong>${formattedDate}</strong>
@@ -367,7 +371,7 @@ function updateHistoryDisplay() {
                     ${item.prediction} (${item.confidence}%)
                 </span>
                 <div style="margin-top: 5px; font-size: 0.8em; color: #6c757d;">
-                    UP: ${item.up_probability}% | DOWN: ${item.down_probability}%
+                    UP: ${upProb}% | DOWN: ${downProb}%
                 </div>
             </div>
         `;
@@ -425,23 +429,35 @@ function loadSampleHistory() {
     updateHistoryDisplay();
 }
 
-// Core application functions (keep your existing functions)
+// FIXED: Enhanced getPrediction function with better error handling
 async function getPrediction() {
     showLoading('Analyzing current market data...');
     disableButtons(true);
     
     try {
+        console.log('Fetching prediction from server...');
         const response = await fetch('/predict');
         const data = await response.json();
+        
+        console.log('Prediction API response:', data);
         
         hideLoading();
         disableButtons(false);
         
         if (data.error) {
+            console.error('Prediction error from server:', data.error);
             showError(data.error);
             return;
         }
         
+        // Ensure we have all required fields
+        if (!data.prediction || data.confidence === undefined || !data.current_price) {
+            console.error('Invalid prediction data received:', data);
+            showError('Invalid prediction data received from server');
+            return;
+        }
+        
+        console.log('Updating display with valid prediction data');
         updatePredictionDisplay(data);
         checkStatus();
         
@@ -449,6 +465,7 @@ async function getPrediction() {
         loadDashboardData();
         
     } catch (error) {
+        console.error('Network error fetching prediction:', error);
         hideLoading();
         disableButtons(false);
         showError('Failed to get prediction: ' + error.message);
@@ -495,7 +512,6 @@ async function checkStatus() {
         const response = await fetch('/status');
         const data = await response.json();
         
-        document.getElementById('lastUpdate').textContent = data.last_update;
         document.getElementById('statusInfo').innerHTML = `
             Model: ${data.model_loaded ? '✅ Loaded' : '❌ Missing'}<br>
             Data: ${data.data_loaded ? '✅ Loaded' : '❌ Missing'}<br>
@@ -503,11 +519,16 @@ async function checkStatus() {
             Current Time: ${data.current_time}
         `;
     } catch (error) {
+        console.error('Status check failed:', error);
         document.getElementById('statusInfo').textContent = 'Unable to check status';
     }
 }
 
+// COMPLETELY REWRITTEN: Fixed prediction display function
 function updatePredictionDisplay(data) {
+    console.log('Starting prediction display update with:', data);
+    
+    // Get all required elements
     const card = document.getElementById('predictionCard');
     const predictionText = document.getElementById('predictionText');
     const confidenceValue = document.getElementById('confidenceValue');
@@ -515,68 +536,135 @@ function updatePredictionDisplay(data) {
     const priceText = document.getElementById('priceText');
     const dateText = document.getElementById('predictionDate');
     
-    // Update styling based on prediction
-    card.className = 'prediction-card ' + 
-        (data.prediction === 'UP' ? 'prediction-up' : 'prediction-down');
+    // Verify all elements exist
+    if (!card || !predictionText || !confidenceValue || !confidenceFill || !priceText || !dateText) {
+        console.error('Missing required DOM elements:', {
+            card: !!card,
+            predictionText: !!predictionText,
+            confidenceValue: !!confidenceValue,
+            confidenceFill: !!confidenceFill,
+            priceText: !!priceText,
+            dateText: !!dateText
+        });
+        showError('UI elements not found');
+        return;
+    }
     
-    // Add animation for price update
-    priceText.classList.add('price-update');
-    setTimeout(() => {
-        priceText.classList.remove('price-update');
-    }, 1500);
-    
-    predictionText.innerHTML = data.prediction === 'UP' ? 
-        '<i class="fas fa-arrow-up"></i> PRICE WILL GO UP' : 
-        '<i class="fas fa-arrow-down"></i> PRICE WILL GO DOWN';
-    
-    predictionText.style.color = data.prediction === 'UP' ? '#28a745' : '#dc3545';
-    
-    // Update confidence meter with animation
-    confidenceValue.textContent = `${data.confidence}%`;
-    setTimeout(() => {
-        confidenceFill.style.width = `${data.confidence}%`;
-        
-        // Set confidence color based on level
-        if (data.confidence >= 70) {
-            confidenceFill.className = 'confidence-fill confidence-high';
-        } else if (data.confidence >= 50) {
-            confidenceFill.className = 'confidence-fill confidence-medium';
-        } else {
-            confidenceFill.className = 'confidence-fill confidence-low';
-        }
-    }, 100);
-    
-    priceText.textContent = `$${data.current_price.toLocaleString()}`;
-    dateText.textContent = `Prediction for: ${data.prediction_date}`;
-    
-    // Add pulse animation for high confidence predictions
-    if (data.confidence >= 80) {
-        card.classList.add('pulse');
-    } else {
+    try {
+        // Reset card state
+        card.className = 'prediction-card';
         card.classList.remove('pulse');
+        
+        // Set prediction style
+        const isUp = data.prediction === 'UP';
+        card.classList.add(isUp ? 'prediction-up' : 'prediction-down');
+        
+        // Update prediction text
+        predictionText.innerHTML = isUp ? 
+            '<i class="fas fa-arrow-up"></i> PRICE WILL GO UP' : 
+            '<i class="fas fa-arrow-down"></i> PRICE WILL GO DOWN';
+        predictionText.style.color = isUp ? '#28a745' : '#dc3545';
+        
+        // Update confidence
+        const confidence = parseFloat(data.confidence);
+        confidenceValue.textContent = `${confidence}%`;
+        
+        // Update confidence meter with animation
+        setTimeout(() => {
+            confidenceFill.style.width = `${confidence}%`;
+            
+            // Set confidence color
+            if (confidence >= 70) {
+                confidenceFill.className = 'confidence-fill confidence-high';
+            } else if (confidence >= 50) {
+                confidenceFill.className = 'confidence-fill confidence-medium';
+            } else {
+                confidenceFill.className = 'confidence-fill confidence-low';
+            }
+        }, 100);
+        
+        // Update price with animation
+        priceText.textContent = `$${parseFloat(data.current_price).toLocaleString()}`;
+        priceText.classList.add('price-update');
+        setTimeout(() => {
+            priceText.classList.remove('price-update');
+        }, 1500);
+        
+        // Update date
+        dateText.textContent = `Prediction for: ${data.prediction_date}`;
+        
+        // Add pulse for high confidence
+        if (confidence >= 80) {
+            card.classList.add('pulse');
+        }
+        
+        console.log('Prediction display updated successfully');
+        
+    } catch (error) {
+        console.error('Error in prediction display:', error);
+        showError('Display error: ' + error.message);
     }
 }
 
 function showLoading(message) {
-    document.getElementById('loading').style.display = 'block';
-    document.getElementById('loadingText').textContent = message;
+    const loading = document.getElementById('loading');
+    const loadingText = document.getElementById('loadingText');
+    if (loading && loadingText) {
+        loading.style.display = 'block';
+        loadingText.textContent = message;
+    }
 }
 
 function hideLoading() {
-    document.getElementById('loading').style.display = 'none';
+    const loading = document.getElementById('loading');
+    if (loading) {
+        loading.style.display = 'none';
+    }
 }
 
 function disableButtons(disabled) {
-    document.getElementById('predictBtn').disabled = disabled;
-    document.getElementById('updateBtn').disabled = disabled;
+    const predictBtn = document.getElementById('predictBtn');
+    const updateBtn = document.getElementById('updateBtn');
+    if (predictBtn) predictBtn.disabled = disabled;
+    if (updateBtn) updateBtn.disabled = disabled;
 }
 
+// FIXED: Enhanced error display
 function showError(message) {
+    console.error('Showing error:', message);
+    
     const predictionText = document.getElementById('predictionText');
-    predictionText.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
-    predictionText.style.color = '#dc3545';
-    document.getElementById('confidenceText').textContent = message;
-    document.getElementById('priceText').textContent = '$--';
-    document.getElementById('confidenceValue').textContent = '0%';
-    document.getElementById('confidenceFill').style.width = '0%';
+    const confidenceValue = document.getElementById('confidenceValue');
+    const confidenceFill = document.getElementById('confidenceFill');
+    const priceText = document.getElementById('priceText');
+    const dateText = document.getElementById('predictionDate');
+    const card = document.getElementById('predictionCard');
+    
+    // Reset all elements to error state
+    if (card) {
+        card.className = 'prediction-card';
+        card.classList.remove('pulse', 'prediction-up', 'prediction-down');
+    }
+    
+    if (predictionText) {
+        predictionText.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+        predictionText.style.color = '#dc3545';
+    }
+    
+    if (confidenceValue) {
+        confidenceValue.textContent = '0%';
+    }
+    
+    if (confidenceFill) {
+        confidenceFill.style.width = '0%';
+        confidenceFill.className = 'confidence-fill confidence-low';
+    }
+    
+    if (priceText) {
+        priceText.textContent = '$--';
+    }
+    
+    if (dateText) {
+        dateText.textContent = '';
+    }
 }

@@ -156,7 +156,6 @@ class BitcoinPricePredictor:
         
         try:
             # Use all data for training (no train/test split for production)
-            # In a real scenario, you might want to keep a test set for evaluation
             train_data = data.copy()
             
             # Ensure all predictors exist
@@ -176,8 +175,8 @@ class BitcoinPricePredictor:
             print(f"Training on {len(train_data)} samples with {len(self.predictors)} features...")
             self.model.fit(train_data[self.predictors], train_data["target"])
             
-            # Set feature names for later reference
-            self.model.feature_names_in_ = np.array(self.predictors)
+            # Store feature names in the model instance (XGBoost compatible way)
+            self.model._feature_names = self.predictors
             
             # Save model
             os.makedirs('models/saved_models', exist_ok=True)
@@ -259,7 +258,7 @@ class BitcoinPricePredictor:
         try:
             if hasattr(self.model, 'feature_importances_'):
                 importance_scores = self.model.feature_importances_.tolist()
-                feature_names = self.predictors
+                feature_names = getattr(self.model, '_feature_names', self.predictors)
                 
                 # Combine and sort by importance
                 features = list(zip(feature_names, importance_scores))

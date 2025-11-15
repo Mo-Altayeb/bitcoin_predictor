@@ -1,0 +1,38 @@
+{
+  "predictors": [
+    "close",
+    "sentiment",
+    "neg_sentiment",
+    "close_ratio_2",
+    "trend_2",
+    "edit_2",
+    "close_ratio_7",
+    "trend_7",
+    "edit_7",
+    "close_ratio_60",
+    "trend_60",
+    "edit_60",
+    "close_ratio_365",
+    "trend_365",
+    "edit_365"
+  ],
+  "feature_names": [
+    "close",
+    "sentiment",
+    "neg_sentiment",
+    "close_ratio_2",
+    "trend_2",
+    "edit_2",
+    "close_ratio_7",
+    "trend_7",
+    "edit_7",
+    "close_ratio_60",
+    "trend_60",
+    "edit_60",
+    "close_ratio_365",
+    "trend_365",
+    "edit_365"
+  ],
+  "training_date": "2025-11-15T14:42:42.523869",
+  "training_samples": 4078
+}

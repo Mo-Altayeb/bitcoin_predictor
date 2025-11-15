@@ -7,6 +7,7 @@ import os
 import json
 from datetime import datetime, timedelta
 import warnings
+import tempfile
 warnings.filterwarnings("ignore")
 
 app = Flask(__name__)
@@ -46,27 +47,85 @@ class BitcoinPredictor:
             self.model = None
     
     def load_prediction_history(self):
-        """Load prediction history from file"""
+        """Load prediction history from file with robust error handling"""
         global prediction_history
         try:
             if os.path.exists(historical_predictions_file):
                 with open(historical_predictions_file, 'r') as f:
-                    prediction_history = json.load(f)
-                print(f"Loaded {len(prediction_history)} historical predictions")
+                    loaded_history = json.load(f)
+                
+                # Validate loaded data is a list
+                if isinstance(loaded_history, list):
+                    prediction_history = loaded_history
+                    print(f"Loaded {len(prediction_history)} historical predictions")
+                else:
+                    print("Invalid history format, starting fresh")
+                    prediction_history = []
             else:
                 prediction_history = []
                 print("No prediction history found, starting fresh")
+                
+        except json.JSONDecodeError as e:
+            print(f"Corrupted history file: {e}. Starting fresh.")
+            prediction_history = []
+            # Create clean file
+            self.save_prediction_history()
         except Exception as e:
             print(f"Error loading prediction history: {e}")
             prediction_history = []
     
     def save_prediction_history(self):
-        """Save prediction history to file"""
+        """Save prediction history to file with robust error handling"""
+        global prediction_history
+        
         try:
-            with open(historical_predictions_file, 'w') as f:
-                json.dump(prediction_history, f, indent=2)
+            # Ensure we have a valid list
+            if not isinstance(prediction_history, list):
+                print("Warning: prediction_history is not a list, resetting")
+                prediction_history = []
+                return
+            
+            # Convert to JSON-serializable format
+            serializable_history = []
+            for item in prediction_history:
+                if isinstance(item, dict):
+                    serializable_item = {}
+                    for key, value in item.items():
+                        # Convert non-serializable types
+                        if isinstance(value, (np.integer, np.int64, np.int32)):
+                            serializable_item[key] = int(value)
+                        elif isinstance(value, (np.floating, np.float64, np.float32)):
+                            serializable_item[key] = float(value)
+                        elif isinstance(value, (np.bool_)):
+                            serializable_item[key] = bool(value)
+                        elif isinstance(value, (np.ndarray)):
+                            serializable_item[key] = value.tolist()
+                        else:
+                            serializable_item[key] = value
+                    serializable_history.append(serializable_item)
+            
+            # Write to temporary file first, then rename (atomic operation)
+            temp_path = historical_predictions_file + '.tmp'
+            
+            with open(temp_path, 'w', encoding='utf-8') as f:
+                json.dump(serializable_history, f, indent=2, ensure_ascii=False, default=str)
+            
+            # Replace the original file
+            if os.path.exists(historical_predictions_file):
+                os.remove(historical_predictions_file)
+            os.rename(temp_path, historical_predictions_file)
+            
+            print(f"✓ Successfully saved {len(serializable_history)} predictions")
+            
         except Exception as e:
-            print(f"Error saving prediction history: {e}")
+            print(f"✗ Error saving prediction history: {e}")
+            # Create empty file as fallback
+            try:
+                with open(historical_predictions_file, 'w') as f:
+                    json.dump([], f, indent=2)
+                print("✓ Created empty prediction history file as fallback")
+            except Exception as e2:
+                print(f"✗ Failed to create fallback file: {e2}")
     
     def get_current_data(self):
         """Get current Bitcoin data and prepare features"""
@@ -182,29 +241,38 @@ class BitcoinPredictor:
             return {"error": f"Prediction error: {str(e)}"}
     
     def add_prediction_to_history(self, prediction_data):
-        """Add prediction to history"""
+        """Add prediction to history with proper type conversion"""
         global prediction_history
         
-        history_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "date": prediction_data["prediction_date"],
-            "prediction": prediction_data["prediction"],
-            "confidence": prediction_data["confidence"],
-            "current_price": prediction_data["current_price"],
-            "up_probability": prediction_data["prediction_proba"]["up_probability"],
-            "down_probability": prediction_data["prediction_proba"]["down_probability"],
-            "actual_result": None,  # This would be filled in later when we know the actual outcome
-            "correct": None
-        }
-        
-        prediction_history.insert(0, history_entry)
-        
-        # Keep only last 100 predictions
-        if len(prediction_history) > 100:
-            prediction_history = prediction_history[:100]
-        
-        # Save to file
-        self.save_prediction_history()
+        try:
+            # Convert all values to native Python types for JSON serialization
+            history_entry = {
+                "timestamp": str(datetime.now().isoformat()),
+                "date": str(prediction_data["prediction_date"]),
+                "prediction": str(prediction_data["prediction"]),
+                "confidence": float(prediction_data["confidence"]),
+                "current_price": float(prediction_data["current_price"]),
+                "up_probability": round(float(prediction_data["prediction_proba"]["up_probability"]), 2),
+                "down_probability": round(float(prediction_data["prediction_proba"]["down_probability"]), 2),
+                "actual_result": None,
+                "correct": None
+            }
+            
+            # Ensure prediction_history is a list
+            if not isinstance(prediction_history, list):
+                prediction_history = []
+            
+            prediction_history.insert(0, history_entry)
+            
+            # Keep only last 100 predictions
+            if len(prediction_history) > 100:
+                prediction_history = prediction_history[:100]
+            
+            # Save to file
+            self.save_prediction_history()
+            
+        except Exception as e:
+            print(f"Error adding prediction to history: {e}")
     
     def get_price_history(self, days=60):
         """Get historical price data for charts"""
@@ -291,7 +359,7 @@ class BitcoinPredictor:
                 "correct_predictions": estimated_correct,
                 "up_accuracy": 68,
                 "down_accuracy": 62,
-                "avg_confidence": np.mean([p['confidence'] for p in prediction_history]) if prediction_history else 0
+                "avg_confidence": float(round(np.mean([p['confidence'] for p in prediction_history]), 1)) if prediction_history else 0
             }
         
         # Calculate actual performance
@@ -310,7 +378,7 @@ class BitcoinPredictor:
             "correct_predictions": correct,
             "up_accuracy": round((up_correct / len(up_predictions)) * 100, 1) if up_predictions else 0,
             "down_accuracy": round((down_correct / len(down_predictions)) * 100, 1) if down_predictions else 0,
-            "avg_confidence": round(np.mean([p['confidence'] for p in completed_predictions]), 1) if completed_predictions else 0
+            "avg_confidence": float(round(np.mean([p['confidence'] for p in completed_predictions]), 1)) if completed_predictions else 0
         }
     
     def get_feature_importance(self):
@@ -372,17 +440,22 @@ def predict():
         result = predictor.predict_tomorrow()
         
         if 'error' not in result:
+            # Ensure ALL values are JSON serializable by converting numpy types
             result = {
                 "prediction": str(result["prediction"]),
                 "confidence": float(result["confidence"]),
                 "current_price": float(result["current_price"]),
                 "last_updated": str(result["last_updated"]),
                 "prediction_date": str(result["prediction_date"]),
-                "prediction_proba": result["prediction_proba"]
+                "prediction_proba": {
+                    "up_probability": float(result["prediction_proba"]["up_probability"]),
+                    "down_probability": float(result["prediction_proba"]["down_probability"])
+                }
             }
         
         return jsonify(result)
     except Exception as e:
+        print(f"Error in /predict endpoint: {e}")
         return jsonify({"error": f"Server error: {str(e)}"})
 
 @app.route('/update', methods=['POST'])
@@ -513,7 +586,7 @@ if __name__ == '__main__':
         print(f"Warning: Could not load data on startup: {e}")
     
     print("Bitcoin Predictor starting...")
-    print("Visit http://localhost:5000 to use the application")
+    print("Visit http://localhost:5001 to use the application")
     print("New API endpoints available:")
     print("  /api/price_history - Price data for charts")
     print("  /api/sentiment_data - Sentiment analysis data")
@@ -522,4 +595,4 @@ if __name__ == '__main__':
     print("  /api/prediction_history - Historical predictions")
     print("  /api/system_stats - Comprehensive system statistics")
     
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5001)))

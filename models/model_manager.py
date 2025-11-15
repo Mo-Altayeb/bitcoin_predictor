@@ -62,7 +62,7 @@ class ModelManager:
         try:
             if hasattr(self.model, 'feature_importances_'):
                 importance_scores = self.model.feature_importances_
-                feature_names = getattr(self.model, 'feature_names_in_', [])
+                feature_names = getattr(self.model, '_feature_names_', [])
                 
                 if len(feature_names) == len(importance_scores):
                     # Combine and sort by importance
