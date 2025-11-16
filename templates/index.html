@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bitcoin AI Predictor</title>
     
-    <!-- External Libraries -->
+    <!-- External Libraries - FIXED VERSION -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Our CSS -->
@@ -74,6 +76,12 @@
                             <div id="priceChange" class="price-change"></div>
                             
                             <div id="predictionDate" style="margin-top: 10px; color: #6c757d;"></div>
+                            
+                            <!-- Probability Breakdown -->
+                            <div class="probability-breakdown" style="margin-top: 15px; font-size: 0.9em;">
+                                <span id="upProbability" class="prob-up">UP: 0%</span>
+                                <span id="downProbability" class="prob-down">DOWN: 0%</span>
+                            </div>
                         </div>
 
                         <!-- Prediction Explanation -->
@@ -163,6 +171,29 @@
                         <div class="chart-container">
                             <canvas id="performanceChart"></canvas>
                         </div>
+
+                        <!-- Performance Details -->
+                        <div class="performance-details">
+                            <h4><i class="fas fa-chart-line"></i> Performance Details</h4>
+                            <div class="performance-grid">
+                                <div>
+                                    <strong>Performance Grade:</strong> 
+                                    <span id="performanceGrade" class="grade-b">B</span>
+                                </div>
+                                <div>
+                                    <strong>Recent Trend:</strong> 
+                                    <span id="performanceTrend">stable</span>
+                                </div>
+                                <div>
+                                    <strong>Confidence Quality:</strong> 
+                                    <span id="confidenceQuality">good</span>
+                                </div>
+                                <div>
+                                    <strong>Prediction Volume:</strong> 
+                                    <span id="predictionVolume">0</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -173,9 +204,32 @@
                 </div>
                 
                 <!-- Sentiment Chart -->
-                <div class="chart-container">
+                <div class="chart-container sentiment-chart-container">
                     <h2 class="chart-title"><i class="fas fa-smile"></i> Wikipedia Sentiment Analysis</h2>
                     <canvas id="sentimentChart"></canvas>
+                    
+                    <!-- Sentiment Details - FIXED POSITIONING -->
+                    <div class="sentiment-details">
+                        <h4><i class="fas fa-info-circle"></i> Sentiment Insights</h4>
+                        <div class="sentiment-grid">
+                            <div>
+                                <strong>Total Edits:</strong> 
+                                <span id="totalEdits">0</span>
+                            </div>
+                            <div>
+                                <strong>Avg Sentiment:</strong> 
+                                <span id="avgSentiment">0.00</span>
+                            </div>
+                            <div>
+                                <strong>Sentiment Trend:</strong> 
+                                <span id="sentimentTrend">stable</span>
+                            </div>
+                            <div>
+                                <strong>Data Points:</strong> 
+                                <span id="sentimentDataPoints">0</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -210,13 +264,34 @@
                             <strong>Sentiment Scores</strong>: Emotional tone of Wikipedia edits
                         </div>
                     </div>
+                    
+                    <!-- Feature Categories -->
+                    <div class="feature-categories">
+                        <div class="category-item">
+                            <strong>Price Trends:</strong> <span id="categoryPrice">0 features</span>
+                        </div>
+                        <div class="category-item">
+                            <strong>Sentiment Analysis:</strong> <span id="categorySentiment">0 features</span>
+                        </div>
+                        <div class="category-item">
+                            <strong>Wikipedia Activity:</strong> <span id="categoryWikipedia">0 features</span>
+                        </div>
+                        <div class="category-item">
+                            <strong>Technical Indicators:</strong> <span id="categoryTechnical">0 features</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Top Feature -->
+                    <div class="top-feature">
+                        <strong id="topFeature">Top Feature: Loading...</strong>
+                    </div>
                 </div>
                 
                 <div class="info-grid">
                     <div class="info-item">
                         <h3><i class="fas fa-lightbulb"></i> How It Works</h3>
                         <p>Our AI analyzes Wikipedia Bitcoin page edits for sentiment patterns and combines them with technical indicators to predict price movements.</p>
-                        <ul style="margin-top: 15px; padding-left: 20px;">
+                        <ul>
                             <li>Real-time Wikipedia edit analysis</li>
                             <li>15+ technical indicators</li>
                             <li>XGBoost machine learning model</li>
@@ -231,6 +306,12 @@
                         <p><strong>Training Data:</strong> Historical Bitcoin prices + Wikipedia sentiment</p>
                         <p><strong>Update Frequency:</strong> Daily automatic retraining</p>
                         <p><strong>Prediction Target:</strong> Next-day price direction (UP/DOWN)</p>
+                        
+                        <!-- Confidence Stats -->
+                        <div id="confidenceStats" class="confidence-stats">
+                            <strong>Confidence Distribution:</strong><br>
+                            Loading...
+                        </div>
                     </div>
                 </div>
             </div>
@@ -241,6 +322,11 @@
                     <h2 class="chart-title"><i class="fas fa-history"></i> Recent Predictions</h2>
                     <div class="history-list" id="historyList">
                         <!-- History items will be added here dynamically -->
+                    </div>
+                    
+                    <!-- History Metadata -->
+                    <div id="historyMetadata" class="history-metadata">
+                        <p>Loading history metadata...</p>
                     </div>
                 </div>
                 
@@ -260,6 +346,13 @@
                                 <!-- Calendar items will be added here -->
                             </div>
                         </div>
+                        
+                        <!-- Export Button -->
+                        <div class="export-section">
+                            <button class="button button-secondary" onclick="exportPredictionData()">
+                                <i class="fas fa-download"></i> Export Prediction Data
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -268,13 +361,24 @@
             <div class="loading" id="loading">
                 <div class="spinner"></div>
                 <p id="loadingText">Analyzing data...</p>
-                <p id="loadingSubtext" style="margin-top: 10px; font-size: 0.9em; color: #6c757d;"></p>
+                <p id="loadingSubtext">Processing Wikipedia sentiment and technical indicators...</p>
             </div>
             
             <!-- Status Section -->
             <div class="status">
                 <strong><i class="fas fa-server"></i> System Status:</strong>
                 <div id="statusInfo">Checking...</div>
+            </div>
+            
+            <!-- Debug Section -->
+            <div class="debug-section">
+                <strong><i class="fas fa-bug"></i> Debug Tools:</strong>
+                <button class="button debug-btn" onclick="debugSentiment()">
+                    Check Sentiment Data
+                </button>
+                <button class="button debug-btn" onclick="console.log('Price Chart:', priceChart)">
+                    Debug Charts
+                </button>
             </div>
             
             <!-- Disclaimer -->
@@ -287,5 +391,54 @@
 
     <!-- Our JavaScript -->
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+    <!-- Error Toast Container -->
+    <div id="errorToast" class="error-toast"></div>
+
+    <script>
+        // Simple fallback if charts still don't load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing charts...');
+            
+            // Check if Chart.js is loaded
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js not loaded!');
+                // Try to reload Chart.js
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js';
+                document.head.appendChild(script);
+                
+                script.onload = function() {
+                    console.log('Chart.js loaded dynamically');
+                    if (typeof initializeCharts === 'function') {
+                        initializeCharts();
+                    }
+                };
+            }
+            
+            // Force chart resize after a short delay to ensure containers are visible
+            setTimeout(() => {
+                if (typeof priceChart !== 'undefined' && priceChart) {
+                    priceChart.resize();
+                }
+                if (typeof sentimentChart !== 'undefined' && sentimentChart) {
+                    sentimentChart.resize();
+                }
+            }, 1000);
+        });
+
+        // Add resize handler for charts
+        window.addEventListener('resize', function() {
+            if (typeof priceChart !== 'undefined' && priceChart) {
+                priceChart.resize();
+            }
+            if (typeof sentimentChart !== 'undefined' && sentimentChart) {
+                sentimentChart.resize();
+            }
+            if (typeof performanceChart !== 'undefined' && performanceChart) {
+                performanceChart.resize();
+            }
+        });
+    </script>
 </body>
 </html>
