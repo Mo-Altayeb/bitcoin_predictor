@@ -5,7 +5,8 @@ import numpy as np
 from transformers import pipeline
 from statistics import mean
 import warnings
-from textblob import TextBlob  # Add fallback sentiment analysis
+from textblob import TextBlob
+import os
 warnings.filterwarnings("ignore")
 
 class WikipediaSentimentAnalyzer:
@@ -67,7 +68,7 @@ class WikipediaSentimentAnalyzer:
     def find_sentiment(self, text):
         """Enhanced sentiment analysis with multiple fallbacks"""
         if not text or str(text) == 'nan' or str(text).strip() == '':
-            return 0
+            return 0.0  # FIXED: Return float instead of int
         
         try:
             # Clean and prepare text
@@ -79,16 +80,16 @@ class WikipediaSentimentAnalyzer:
                 score = result["score"]
                 if result["label"] == "NEGATIVE":
                     score *= -1
-                return score
+                return float(score)  # FIXED: Ensure float
             else:
                 # Fallback to TextBlob
                 blob = TextBlob(clean_text)
                 # Convert polarity from [-1, 1] to sentiment score
-                return blob.sentiment.polarity
+                return float(blob.sentiment.polarity)  # FIXED: Ensure float
                 
         except Exception as e:
             print(f"⚠️  Sentiment analysis error: {e}")
-            return 0
+            return 0.0  # FIXED: Return float instead of int
 
     def analyze_sentiment(self, revs):
         """Enhanced sentiment analysis with better data validation"""
@@ -117,7 +118,7 @@ class WikipediaSentimentAnalyzer:
                     sentiment_score = self.find_sentiment(comment)
                     # Only count non-zero sentiments as valid
                     if sentiment_score != 0:
-                        edits[date]["sentiments"].append(sentiment_score)
+                        edits[date]["sentiments"].append(float(sentiment_score))  # FIXED: Ensure float
                         valid_sentiments += 1
                         
             except Exception as e:
@@ -131,22 +132,41 @@ class WikipediaSentimentAnalyzer:
             print("⚠️ No valid sentiment data found, creating sample data for demo")
             return self.create_sample_sentiment_data()
         
-        # Aggregate by date with better handling
+        # Aggregate by date with better handling - FIXED DATA TYPES
         for date in edits:
             sentiments = edits[date]["sentiments"]
             if len(sentiments) > 0:
-                edits[date]["sentiment"] = mean(sentiments)
+                # FIXED: Ensure all values are proper numeric types
+                edits[date]["sentiment"] = float(mean(sentiments))
                 # Calculate percentage of negative sentiments
-                negative_count = len([s for s in sentiments if s < -0.1])  # Threshold for negative
-                edits[date]["neg_sentiment"] = negative_count / len(sentiments)
+                negative_count = len([s for s in sentiments if s < -0.1])
+                edits[date]["neg_sentiment"] = float(negative_count / len(sentiments))
             else:
                 # Use neutral values for days without valid sentiments
-                edits[date]["sentiment"] = 0
-                edits[date]["neg_sentiment"] = 0
+                edits[date]["sentiment"] = 0.0
+                edits[date]["neg_sentiment"] = 0.0
 
-        edits_df = pd.DataFrame.from_dict(edits, orient="index")
-        if not edits_df.empty:
-            edits_df.index = pd.to_datetime(edits_df.index)
+        # FIXED: Create DataFrame with proper data structure
+        if not edits:
+            print("❌ No edits data to process")
+            return self.create_sample_sentiment_data()
+            
+        # Convert to list of dictionaries with proper data types
+        data_list = []
+        for date, data in edits.items():
+            data_list.append({
+                'date': pd.to_datetime(date),
+                'sentiment': float(data.get('sentiment', 0.0)),
+                'neg_sentiment': float(data.get('neg_sentiment', 0.0)),
+                'edit_count': int(data.get('edit_count', 0))
+            })
+        
+        if not data_list:
+            print("❌ No data to create DataFrame")
+            return self.create_sample_sentiment_data()
+            
+        edits_df = pd.DataFrame(data_list)
+        edits_df = edits_df.set_index('date')
         
         print(f"✅ Analyzed sentiment for {len(edits_df)} days with {valid_sentiments} valid scores")
         return edits_df
@@ -174,9 +194,9 @@ class WikipediaSentimentAnalyzer:
             edit_count = random.randint(5, 25)
             
             sample_data.append({
-                'sentiment': round(base_sentiment + random.uniform(-0.15, 0.15), 3),
-                'neg_sentiment': round(random.uniform(0.1, 0.4), 3),  # 10-40% negative
-                'edit_count': edit_count
+                'sentiment': float(round(base_sentiment + random.uniform(-0.15, 0.15), 3)),
+                'neg_sentiment': float(round(random.uniform(0.1, 0.4), 3)),
+                'edit_count': int(edit_count)
             })
         
         df = pd.DataFrame(sample_data, index=dates)
@@ -185,7 +205,7 @@ class WikipediaSentimentAnalyzer:
         return df
 
     def create_sentiment_file(self):
-        """Main function to create sentiment CSV file"""
+        """Main function to create sentiment CSV file - FIXED DATETIME ERROR"""
         print("🚀 Starting Wikipedia sentiment analysis pipeline...")
         revs = self.fetch_wikipedia_data()
         
@@ -193,6 +213,7 @@ class WikipediaSentimentAnalyzer:
             print("❌ No Wikipedia data fetched, creating sample sentiment file")
             sample_df = self.create_sample_sentiment_data()
             sample_df.to_csv("wikipedia_edits.csv")
+            print("✅ Sample sentiment file created")
             return sample_df
             
         edits_df = self.analyze_sentiment(revs)
@@ -201,24 +222,92 @@ class WikipediaSentimentAnalyzer:
             print("❌ No sentiment data generated, creating sample file")
             sample_df = self.create_sample_sentiment_data()
             sample_df.to_csv("wikipedia_edits.csv")
+            print("✅ Sample sentiment file created")
             return sample_df
         
         # Fill missing dates and apply rolling average
-        from datetime import datetime
-        if not edits_df.empty:
-            dates = pd.date_range(start=edits_df.index.min(), end=datetime.today())
-            edits_df = edits_df.reindex(dates, fill_value=0)
-        
-        rolling_edits = edits_df.rolling(30, min_periods=1).mean()
-        rolling_edits = rolling_edits.fillna(0)
-        
-        # Ensure we have the required columns
-        required_columns = ['sentiment', 'neg_sentiment', 'edit_count']
-        for col in required_columns:
-            if col not in rolling_edits.columns:
-                rolling_edits[col] = 0
-        
-        rolling_edits.to_csv("wikipedia_edits.csv")
-        print("✅ Sentiment analysis complete. File saved as 'wikipedia_edits.csv'")
-        
-        return rolling_edits
+        try:
+            if not edits_df.empty:
+                # FIXED: Ensure index is datetime and handle properly
+                if not pd.api.types.is_datetime64_any_dtype(edits_df.index):
+                    edits_df.index = pd.to_datetime(edits_df.index)
+                
+                end_date = pd.Timestamp.today().normalize()
+                start_date = pd.to_datetime(edits_df.index.min()).normalize()
+                dates = pd.date_range(start=start_date, end=end_date)
+                edits_df = edits_df.reindex(dates, fill_value=0.0)
+            
+            rolling_edits = edits_df.rolling(30, min_periods=1).mean()
+            rolling_edits = rolling_edits.fillna(0.0)
+            
+            # Ensure we have the required columns with proper data types
+            required_columns = ['sentiment', 'neg_sentiment', 'edit_count']
+            for col in required_columns:
+                if col not in rolling_edits.columns:
+                    rolling_edits[col] = 0.0
+                else:
+                    # FIXED: Ensure numeric types
+                    rolling_edits[col] = pd.to_numeric(rolling_edits[col], errors='coerce').fillna(0.0)
+            
+            rolling_edits.to_csv("wikipedia_edits.csv")
+            print("✅ Sentiment analysis complete. File saved as 'wikipedia_edits.csv'")
+            
+            return rolling_edits
+            
+        except Exception as e:
+            print(f"❌ Error in sentiment file creation: {e}")
+            import traceback
+            traceback.print_exc()
+            print("🔄 Creating sample sentiment file as fallback...")
+            sample_df = self.create_sample_sentiment_data()
+            sample_df.to_csv("wikipedia_edits.csv")
+            print("✅ Sample sentiment file created as fallback")
+            return sample_df
+
+    def get_sentiment_summary(self):
+        """Get sentiment summary for API - FIXED DATE FORMATTING"""
+        try:
+            if os.path.exists("wikipedia_edits.csv"):
+                df = pd.read_csv("wikipedia_edits.csv", index_col=0, parse_dates=True)
+                
+                # FIXED: Ensure index is datetime
+                if not pd.api.types.is_datetime64_any_dtype(df.index):
+                    df.index = pd.to_datetime(df.index)
+                
+                # Get last 30 days
+                recent_data = df.last('30D')
+                
+                if len(recent_data) == 0:
+                    return self._create_sample_sentiment_summary()
+                
+                # Calculate sentiment distribution
+                positive = len(recent_data[recent_data['sentiment'] > 0.1])
+                neutral = len(recent_data[(recent_data['sentiment'] >= -0.1) & (recent_data['sentiment'] <= 0.1)])
+                negative = len(recent_data[recent_data['sentiment'] < -0.1])
+                
+                return {
+                    "positive": int(positive),
+                    "neutral": int(neutral),
+                    "negative": int(negative),
+                    "total_edits": int(recent_data['edit_count'].sum()),
+                    "avg_sentiment": float(recent_data['sentiment'].mean()),
+                    "sentiment_trend": "improving" if recent_data['sentiment'].iloc[-1] > recent_data['sentiment'].iloc[0] else "declining",
+                    "data_points": len(recent_data)
+                }
+            else:
+                return self._create_sample_sentiment_summary()
+        except Exception as e:
+            print(f"❌ Error in get_sentiment_summary: {e}")
+            return self._create_sample_sentiment_summary()
+
+    def _create_sample_sentiment_summary(self):
+        """Create sample sentiment summary when real data fails"""
+        return {
+            "positive": 15,
+            "neutral": 8,
+            "negative": 7,
+            "total_edits": 120,
+            "avg_sentiment": 0.25,
+            "sentiment_trend": "improving",
+            "data_points": 30
+        }

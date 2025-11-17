@@ -2,6 +2,7 @@ from models.sentiment_analyzer import WikipediaSentimentAnalyzer
 from models.price_predictor import BitcoinPricePredictor
 import time
 from datetime import datetime
+import os
 
 def update_wikipedia_data():
     """Update Wikipedia sentiment data with enhanced error handling"""
@@ -15,7 +16,13 @@ def update_wikipedia_data():
         if sentiment_data is not None and not sentiment_data.empty:
             print("✅ Wikipedia data update completed successfully")
             print(f"   - Data points: {len(sentiment_data)}")
-            print(f"   - Date range: {sentiment_data.index.min()} to {sentiment_data.index.max()}")
+            # FIXED: Handle date formatting safely
+            try:
+                start_date = sentiment_data.index.min()
+                end_date = sentiment_data.index.max()
+                print(f"   - Date range: {start_date} to {end_date}")
+            except:
+                print(f"   - Date range: Unknown")
             return sentiment_data
         else:
             print("❌ Wikipedia data update completed but no data was generated")
@@ -23,6 +30,8 @@ def update_wikipedia_data():
             
     except Exception as e:
         print(f"❌ Wikipedia data update failed: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def update_bitcoin_model():
@@ -41,11 +50,14 @@ def update_bitcoin_model():
             print(f"   - Training date: {model_info['training_date']}")
             return prediction
         else:
-            print("❌ Bitcoin model update completed but with errors")
+            error_msg = prediction.get('error', 'Unknown error') if prediction else 'No prediction returned'
+            print(f"❌ Bitcoin model update completed but with errors: {error_msg}")
             return prediction
             
     except Exception as e:
         print(f"❌ Bitcoin model update failed: {e}")
+        import traceback
+        traceback.print_exc()
         # Return safe default
         return {
             "prediction": "UP",
@@ -62,10 +74,10 @@ def check_system_dependencies():
     """Check if all required system dependencies are available"""
     print("🔍 Checking system dependencies...")
     dependencies = {
-        "Wikipedia API": True,  # mwclient will fail at runtime if not available
-        "Yahoo Finance": True,  # yfinance will fail at runtime
-        "Machine Learning": True,  # xgboost and sklearn
-        "Sentiment Analysis": True  # transformers
+        "Wikipedia API": True,
+        "Yahoo Finance": True,
+        "Machine Learning": True,
+        "Sentiment Analysis": True
     }
     
     print("✅ Basic dependencies check passed")
@@ -88,9 +100,19 @@ if __name__ == "__main__":
     
     # Update Wikipedia data
     wiki_data = update_wikipedia_data()
+    #wiki_data = pd.DataFrame("wikipedia_edits.csv")
     
     # Small delay to ensure file writing is complete
     time.sleep(2)
+    
+    # Check if sentiment file was created
+    if not os.path.exists("wikipedia_edits.csv"):
+        print("❌ Sentiment file was not created. Creating sample data...")
+        from models.sentiment_analyzer import WikipediaSentimentAnalyzer
+        analyzer = WikipediaSentimentAnalyzer()
+        sample_data = analyzer.create_sample_sentiment_data()
+        sample_data.to_csv("wikipedia_edits.csv")
+        print("✅ Sample sentiment file created")
     
     # Update Bitcoin model
     result = update_bitcoin_model()

@@ -813,7 +813,7 @@ function updatePerformanceContext(performance) {
     
     if (performanceElements.trend) {
         const trendIcon = performance.recent_trend === 'improving' ? '📈' : 
-                         performance.recent_trend === 'declining' ? '📉' : '➡️';
+                        performance.recent_trend === 'declining' ? '📉' : '➡️';
         performanceElements.trend.innerHTML = `${trendIcon} ${performance.recent_trend}`;
     }
     
