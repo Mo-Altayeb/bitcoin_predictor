@@ -77,13 +77,10 @@ jobs:
       - name: Copy artifacts and commit
         run: |
           mkdir -p models/saved_models
-          # Adjust these paths if your pipeline writes to different filenames
           # Only copy if they exist
           if [ -f models/saved_models/bitcoin_model.pkl ]; then cp models/saved_models/bitcoin_model.pkl models/saved_models/; fi
           if [ -f models/saved_models/feature_info.json ]; then cp models/saved_models/feature_info.json models/saved_models/; fi
           if [ -f wikipedia_edits.csv ]; then cp wikipedia_edits.csv models/saved_models/ || true; fi
-
-          # Force-add large files (git LFS not configured here). This works for moderate-sized files.
           git add -f models/saved_models/bitcoin_model.pkl models/saved_models/feature_info.json wikipedia_edits.csv || true
           git commit -m "Update trained model artifacts: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" || echo "No changes to commit"
           git push origin model-artifacts
@@ -94,7 +91,7 @@ jobs:
       #   with:
       #     files: |
       #       models/saved_models/bitcoin_model.pkl
-            models/saved_models/feature_info.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        #     models/saved_models/feature_info.json
+        # env:
+        #   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   
