@@ -1,0 +1,100 @@
+name: Retrain Model and Publish Artifacts
+
+# Runs daily at 02:00 UTC and is manually triggerable from Actions UI
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    # Increase timeout if your full training can be long
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # need full history to create/checkout branches
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Show Python & pip info
+        run: |
+          python -V
+          pip --version
+
+      - name: Run training pipeline
+        # this runs your training entrypoint - ensure scripts/run_pipeline.py exists
+        run: |
+          python scripts/run_pipeline.py
+
+      - name: List artifacts (debug)
+        run: |
+          echo "Listing models/saved_models/"
+          ls -la models/saved_models || true
+          echo "Listing repo root"
+          ls -la || true
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Prepare model-artifacts branch
+        run: |
+          # Fetch remote branch if it exists
+          git fetch origin model-artifacts:refs/remotes/origin/model-artifacts || true
+
+          if git rev-parse --verify origin/model-artifacts >/dev/null 2>&1; then
+            git checkout model-artifacts
+            git pull origin model-artifacts
+          else
+            # create an orphan branch to store artifacts
+            git checkout --orphan model-artifacts
+            git rm -rf .
+            git commit --allow-empty -m "Initialize model-artifacts branch"
+            git push origin model-artifacts
+            git checkout model-artifacts
+          fi
+
+      - name: Copy artifacts and commit
+        run: |
+          mkdir -p models/saved_models
+          # Adjust these paths if your pipeline writes to different filenames
+          # Only copy if they exist
+          if [ -f models/saved_models/bitcoin_model.pkl ]; then cp models/saved_models/bitcoin_model.pkl models/saved_models/; fi
+          if [ -f models/saved_models/feature_info.json ]; then cp models/saved_models/feature_info.json models/saved_models/; fi
+          if [ -f wikipedia_edits.csv ]; then cp wikipedia_edits.csv models/saved_models/ || true; fi
+
+          # Force-add large files (git LFS not configured here). This works for moderate-sized files.
+          git add -f models/saved_models/bitcoin_model.pkl models/saved_models/feature_info.json wikipedia_edits.csv || true
+          git commit -m "Update trained model artifacts: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" || echo "No changes to commit"
+          git push origin model-artifacts
+
+      - name: Optional: create a Release (commented out - enable if wanted)
+        if: false
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            models/saved_models/bitcoin_model.pkl
+            models/saved_models/feature_info.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
