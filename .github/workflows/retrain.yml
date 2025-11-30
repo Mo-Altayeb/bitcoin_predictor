@@ -78,12 +78,21 @@ jobs:
         run: |
           mkdir -p models/saved_models
           # Only copy if they exist
-          if [ -f models/saved_models/bitcoin_model.pkl ]; then cp models/saved_models/bitcoin_model.pkl models/saved_models/; fi
-          if [ -f models/saved_models/feature_info.json ]; then cp models/saved_models/feature_info.json models/saved_models/; fi
-          if [ -f wikipedia_edits.csv ]; then cp wikipedia_edits.csv models/saved_models/ || true; fi
-          git add -f models/saved_models/bitcoin_model.pkl models/saved_models/feature_info.json wikipedia_edits.csv || true
-          git commit -m "Update trained model artifacts: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" || echo "No changes to commit"
-          git push origin model-artifacts
+          if [ -f models/saved_models/bitcoin_model.pkl ]; then FILES="$FILES models/saved_models/bitcoin_model.pkl"; fi
+          if [ -f models/saved_models/feature_info.json ]; then FILES="$FILES models/saved_models/feature_info.json"; fi
+          if [ -f wikipedia_edits.csv ]; then FILES="$FILES wikipedia_edits.csv"; fi
+          if [ -z "$FILES" ]; then
+            echo "No artifacts found to commit"
+          else
+            echo "Adding files: $FILES"
+            git add -f $FILES
+            if git diff --cached --quiet; then
+              echo "No changes to commit"
+            else
+              git commit -m "Update trained model artifacts: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+              git push origin model-artifacts
+            fi
+          fi
 
       # - name: Optional: create a Release (commented out - enable if wanted)
       #   if: false
