@@ -74,7 +74,6 @@ jobs:
             git push origin model-artifacts
             git checkout model-artifacts
           fi
-
       - name: Copy artifacts and commit
         run: |
           mkdir -p models/saved_models
