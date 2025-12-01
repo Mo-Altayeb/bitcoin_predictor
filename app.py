@@ -16,6 +16,11 @@ import sys
 import io
 from contextlib import redirect_stdout, redirect_stderr
 import threading
+import traceback
+
+# --- NEW ADDITION ---
+from models.artifact_fetcher import fetch_latest_model 
+# --------------------
 
 warnings.filterwarnings("ignore")
 
@@ -174,6 +179,19 @@ class BitcoinPredictor:
         self.last_update = None
         self.data_loaded_time = None
         self.model_manager = ModelManager()
+        # --- NEW LOGIC: Fetch artifacts before loading ---
+        print("⬇️ Startup: Attempting to fetch latest model artifacts from GitHub...")
+        try:
+            # This calls your models/artifact_fetcher.py logic
+            # Ensure your environment variables (GITHUB_TOKEN) are set in Render if repo is private
+            if fetch_latest_model():
+                print("✅ Successfully fetched latest artifacts")
+            else:
+                print("⚠️ Could not fetch artifacts, using existing local files if available")
+        except Exception as e:
+            print(f"❌ Error fetching artifacts: {e}")
+        # ------------------------------------------------
+        
         self.load_model()
         self.load_prediction_history()
 
