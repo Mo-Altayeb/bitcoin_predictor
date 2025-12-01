@@ -845,7 +845,8 @@ class BitcoinPredictor:
             sentiment_df = sentiment_df.apply(pd.to_numeric, errors="coerce")
 
             # Get recent sentiment data (last 30 days)
-            recent_sentiment = sentiment_df.tail(100)
+            #recent_sentiment = sentiment_df.tail(100)
+            recent_sentiment = sentiment_df
 
             if len(recent_sentiment) == 0:
                 print("❌ No recent sentiment data found")
