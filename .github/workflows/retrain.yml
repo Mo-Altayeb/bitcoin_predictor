@@ -58,33 +58,66 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Prepare model-artifacts branch
+    
+      - name: Publish artifacts to model-artifacts branch (safe move + checkout)
         run: |
-          # Fetch remote branch if it exists
+          set -e
+
+          echo "=> Preparing temporary artifact folder"
+          TMP_DIR=$(mktemp -d)
+          echo "tmpdir: $TMP_DIR"
+
+          # Move any generated artifacts to a safe temp dir before switching branches
+          mkdir -p "$TMP_DIR/models/saved_models"
+          if [ -f models/saved_models/bitcoin_model.pkl ]; then
+            mv models/saved_models/bitcoin_model.pkl "$TMP_DIR/models/saved_models/"
+          fi
+          if [ -f models/saved_models/feature_info.json ]; then
+            mv models/saved_models/feature_info.json "$TMP_DIR/models/saved_models/"
+          fi
+          if [ -f wikipedia_edits.csv ]; then
+            mv wikipedia_edits.csv "$TMP_DIR/" || true
+          fi
+
+          echo "=> Fetching remote branch (if exists)"
           git fetch origin model-artifacts:refs/remotes/origin/model-artifacts || true
 
           if git rev-parse --verify origin/model-artifacts >/dev/null 2>&1; then
+            echo "=> Branch model-artifacts exists remotely — checking out"
+            # clean local untracked files that would block checkout (should be empty now)
             git checkout model-artifacts
             git pull origin model-artifacts
           else
-            # create an orphan branch to store artifacts
+            echo "=> Branch model-artifacts does not exist — creating orphan branch"
             git checkout --orphan model-artifacts
             git rm -rf .
             git commit --allow-empty -m "Initialize model-artifacts branch"
             git push origin model-artifacts
             git checkout model-artifacts
           fi
-      - name: Copy artifacts and commit
-        run: |
+
+          echo "=> Restoring artifacts from temp to working tree"
           mkdir -p models/saved_models
-          # Only copy if they exist
+          if [ -f "$TMP_DIR/models/saved_models/bitcoin_model.pkl" ]; then
+            mv "$TMP_DIR/models/saved_models/bitcoin_model.pkl" models/saved_models/
+          fi
+          if [ -f "$TMP_DIR/models/saved_models/feature_info.json" ]; then
+            mv "$TMP_DIR/models/saved_models/feature_info.json" models/saved_models/
+          fi
+          if [ -f "$TMP_DIR/wikipedia_edits.csv" ]; then
+            mv "$TMP_DIR/wikipedia_edits.csv" .
+          fi
+
+          # Stage only existing files
+          FILES=""
           if [ -f models/saved_models/bitcoin_model.pkl ]; then FILES="$FILES models/saved_models/bitcoin_model.pkl"; fi
           if [ -f models/saved_models/feature_info.json ]; then FILES="$FILES models/saved_models/feature_info.json"; fi
           if [ -f wikipedia_edits.csv ]; then FILES="$FILES wikipedia_edits.csv"; fi
+
           if [ -z "$FILES" ]; then
-            echo "No artifacts found to commit"
+            echo "No artifacts to commit"
           else
-            echo "Adding files: $FILES"
+            echo "Committing files: $FILES"
             git add -f $FILES
             if git diff --cached --quiet; then
               echo "No changes to commit"
@@ -93,6 +126,45 @@ jobs:
               git push origin model-artifacts
             fi
           fi
+
+          echo "=> Cleanup tempdir"
+          rm -rf "$TMP_DIR"
+
+      # - name: Prepare model-artifacts branch
+      #   run: |
+      #     # Fetch remote branch if it exists
+      #     git fetch origin model-artifacts:refs/remotes/origin/model-artifacts || true
+
+      #     if git rev-parse --verify origin/model-artifacts >/dev/null 2>&1; then
+      #       git checkout model-artifacts
+      #       git pull origin model-artifacts
+      #     else
+      #       # create an orphan branch to store artifacts
+      #       git checkout --orphan model-artifacts
+      #       git rm -rf .
+      #       git commit --allow-empty -m "Initialize model-artifacts branch"
+      #       git push origin model-artifacts
+      #       git checkout model-artifacts
+      #     fi
+      # - name: Copy artifacts and commit
+      #   run: |
+      #     mkdir -p models/saved_models
+      #     # Only copy if they exist
+      #     if [ -f models/saved_models/bitcoin_model.pkl ]; then FILES="$FILES models/saved_models/bitcoin_model.pkl"; fi
+      #     if [ -f models/saved_models/feature_info.json ]; then FILES="$FILES models/saved_models/feature_info.json"; fi
+      #     if [ -f wikipedia_edits.csv ]; then FILES="$FILES wikipedia_edits.csv"; fi
+      #     if [ -z "$FILES" ]; then
+      #       echo "No artifacts found to commit"
+      #     else
+      #       echo "Adding files: $FILES"
+      #       git add -f $FILES
+      #       if git diff --cached --quiet; then
+      #         echo "No changes to commit"
+      #       else
+      #         git commit -m "Update trained model artifacts: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+      #         git push origin model-artifacts
+      #       fi
+      #     fi
 
       # - name: Optional: create a Release (commented out - enable if wanted)
       #   if: false
